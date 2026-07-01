@@ -49,7 +49,7 @@ jobs:
           ignore-unfixed: true
 
       - name: Upload Trivy SARIF to GitHub Security tab
-        if: always()
+        if: ${{ always() && hashFiles('trivy.sarif') != '' }}
         uses: github/codeql-action/upload-sarif@8272c299f21ca24af15dfe9ac0971ba969e5e0d5
         with:
           sarif_file: trivy.sarif
