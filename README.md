@@ -44,7 +44,7 @@ See [docs/TEMPLATE_GUIDE.md](docs/TEMPLATE_GUIDE.md) for the full setup guide in
 ## Repository Structure
 
 ```
-.claude/commands/    Claude Code skills (/bmad, /bmad-to-board, /next-issue, /run-epic, /day0-check, /route-task, /security-audit)
+.claude/commands/    Claude Code skills (/bmad, /bmad-to-board, /next-issue, /run-epic, /day0-check, /route-task, /security-audit, /firewall-allow)
 .devcontainer/       Dev environment with deny-by-default firewall and pre-installed tooling
 .github/             Workflows (CI, secret scan, semgrep, container scan, weekly audit); issue & PR templates
 docs/                TEMPLATE_GUIDE.md, AI_ROUTING_POLICY.md, BMAD_WORKFLOW.md, KANBAN_WORKFLOW.md

@@ -135,7 +135,7 @@ Bootstrap safety defaults:
 
 ## Security Model
 
-- Deny-by-default egress firewall in devcontainer (IPv4 + IPv6).
+- Deny-by-default egress firewall in devcontainer (IPv4 + IPv6). Use `/firewall-allow` to add a new egress host to the allowlist.
 - Host access limited to local model endpoint on TCP 11434.
 - Secrets blocked locally by pre-commit and in CI by gitleaks workflow.
 - Semgrep policy checks in local and CI workflows with SARIF upload to GitHub Security tab.
@@ -263,6 +263,7 @@ These slash commands are defined in `.claude/commands/` and are specific to this
 | `/route-task` | Invoke the model routing protocol explicitly |
 | `/day0-check` | Validate day-0 setup and get guided remediation |
 | `/security-audit` | Full security scan with MITRE ATLAS + PII coverage mapping |
+| `/firewall-allow` | Add an egress host to the dev container firewall allowlist |
 
 ## Caveman and Token Controls
 
