@@ -38,15 +38,16 @@ for t in "${FAST_TASKS[@]}"; do
   fi
 done
 
+# Classify risk/complexity/size before local availability so the `reason` is
+# meaningful regardless of whether local routing is on. This keeps `high_risk`
+# and `complex_task` visible to consumers (e.g. suggest-route.sh) — all of these
+# branches route to Claude anyway, exactly as `local_disabled` would.
 if [[ "$FORCE_CLAUDE" == "true" ]]; then
   choose_local=false
   reason="force_claude"
 elif [[ "$FORCE_LOCAL" == "true" ]]; then
   choose_local=true
   reason="force_local"
-elif [[ "$LOCAL_MODEL_ENABLED" != "true" ]]; then
-  choose_local=false
-  reason="local_disabled"
 elif [[ "$RISK_LEVEL" == "high" ]]; then
   choose_local=false
   reason="high_risk"
@@ -56,6 +57,9 @@ elif [[ "$TASK_TYPE" =~ ^(architecture|security|deep-debug|cross-cutting)$ ]]; t
 elif [[ "$CHANGED_FILES" =~ ^[0-9]+$ ]] && (( CHANGED_FILES > 8 )); then
   choose_local=false
   reason="large_change_set"
+elif [[ "$LOCAL_MODEL_ENABLED" != "true" ]]; then
+  choose_local=false
+  reason="local_disabled"
 else
   choose_local=true
   reason="simple_task"

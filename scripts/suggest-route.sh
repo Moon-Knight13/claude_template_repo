@@ -20,18 +20,19 @@ CHANGED_FILES="${3:-1}"
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Complex or high-risk work stays with a human orchestrator.
-if [[ "$RISK_LEVEL" == "high" ]] || [[ "$TASK_TYPE" =~ ^(architecture|security|deep-debug|cross-cutting)$ ]]; then
-  echo "Human"
+# Safety gate FIRST — high-risk and inherently-complex work must never be
+# auto-driven by an agent, and this must hold regardless of the FORCE_LOCAL /
+# FORCE_CLAUDE overrides. route-model.sh evaluates those overrides *before* it
+# ever reaches its high_risk / complex_task branches, so its verdict cannot be
+# trusted to surface those reasons. We therefore re-derive the Human gate here,
+# independently, matching the CLAUDE.md hard-escalation triggers.
+if [[ "$RISK_LEVEL" == "high" ]] \
+  || [[ "$TASK_TYPE" =~ ^(architecture|security|deep-debug|cross-cutting)$ ]]; then
+  echo "Human"   # work an agent should not auto-drive
   exit 0
 fi
 
-# Otherwise let route-model.sh decide local vs. Claude.
+# For the remaining low/medium-risk work, route-model.sh decides Local vs Claude.
 result="$(bash "$HERE/route-model.sh" "$TASK_TYPE" "$RISK_LEVEL" "$CHANGED_FILES")"
 provider="${result%%:*}"
-
-if [[ "$provider" == "local" ]]; then
-  echo "Local"
-else
-  echo "Claude"
-fi
+[[ "$provider" == "local" ]] && echo "Local" || echo "Claude"

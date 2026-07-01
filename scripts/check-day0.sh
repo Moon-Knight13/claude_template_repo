@@ -82,7 +82,9 @@ else
 fi
 
 # 7. GitHub Projects scope granted (needed to create/manage the Kanban board)
-if gh auth status 2>&1 | grep -qi "project"; then
+# Match the quoted 'project' scope token — an unanchored "project" also matches the
+# read-only 'read:project' scope, which cannot create/manage the board.
+if gh auth status 2>&1 | grep -qF "'project'"; then
     check "gh has Projects scope" "pass" ""
 else
     check "gh has Projects scope" "fail" \

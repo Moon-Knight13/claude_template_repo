@@ -84,8 +84,7 @@ status_for_slug() {
 
 cmd_add() {
   local n="$1"; [[ -n "$n" ]] || die "usage: board.sh add <issue#>"
-  ensure_item "$n" >/dev/null
-  set_field "$n" "Status" "Backlog"
+  set_field "$n" "Status" "Backlog"  # set_field ensures the card exists
 }
 
 cmd_next() {
@@ -116,8 +115,7 @@ cmd_claim() {
     return 3
   fi
 
-  gh issue edit "$n" --add-assignee "@me" >/dev/null
-  gh issue edit "$n" --add-label "wip" >/dev/null
+  gh issue edit "$n" --add-assignee "@me" --add-label "wip" >/dev/null
   set_field "$n" "Status" "In Progress" >/dev/null
 
   # Re-read: confirm we are the sole assignee (optimistic-lock against a race).
@@ -127,6 +125,16 @@ cmd_claim() {
   if [[ "$owners" != "$who" ]]; then
     echo "#$n was claimed concurrently (assignees: $owners). Releasing my hold." >&2
     gh issue edit "$n" --remove-assignee "@me" >/dev/null || true
+    # We also set 'wip' + In Progress moments ago. If a rival still holds the card
+    # that lock is theirs — leave it. But if we just backed off and NO ONE is left
+    # (mutual back-off), clear it so the card doesn't strand as wip/In-Progress with
+    # zero assignees, invisible to `next` yet flagged "do not touch".
+    local after
+    after="$(gh issue view "$n" --json assignees)"
+    if [[ "$(jq -r '.assignees | length' <<<"$after")" == "0" ]]; then
+      gh issue edit "$n" --remove-label "wip" >/dev/null || true
+      set_field "$n" "Status" "Ready" >/dev/null || true
+    fi
     return 3
   fi
   echo "Claimed #$n as $who (assigned + wip + In Progress)."
@@ -134,8 +142,11 @@ cmd_claim() {
 
 cmd_release() {
   local n="$1"; [[ -n "$n" ]] || die "usage: board.sh release <issue#>"
-  gh issue edit "$n" --remove-assignee "@me" >/dev/null || true
-  gh issue edit "$n" --remove-label "wip" >/dev/null || true
+  # Gate the Status flip on the unassign/unlabel actually succeeding — otherwise a
+  # swallowed error would leave the card assigned + wip yet shown Ready, so `next`
+  # (Ready AND unassigned) never surfaces it and the story is silently orphaned.
+  gh issue edit "$n" --remove-assignee "@me" --remove-label "wip" >/dev/null \
+    || die "failed to unassign/unlabel #$n; leaving card as-is (Status not changed)."
   set_field "$n" "Status" "Ready" >/dev/null
   echo "Released #$n (back to Ready)."
 }

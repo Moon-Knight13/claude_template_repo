@@ -14,8 +14,9 @@ IFS=$'\n\t'
 #     semgrep, gitleaks) must pass before merge
 #   - linear history; no force-pushes, deletions, or direct pushes to the branch
 #
-# Safe by default: dry-run unless APPLY=true, only touches the default branch,
-# and refuses to require code-owner reviews while CODEOWNERS is still a placeholder.
+# Safe by default: dry-run unless APPLY=true, targets the default branch (or the
+# BRANCH override, once REQUIRE_DEFAULT_BRANCH=false unlocks it), and refuses to
+# require code-owner reviews while CODEOWNERS is still a placeholder.
 #
 # Environment overrides:
 #   APPLY=true                 actually mutate settings (default: dry-run)
@@ -26,8 +27,10 @@ IFS=$'\n\t'
 #   REQUIRE_THREAD_RESOLUTION=true   require all review threads resolved
 #   REQUIRED_CHECKS=a,b,c      status-check contexts (bare job names)
 #   STRICT_STATUS_CHECKS=false require branch up to date before merge
-#   ADMIN_BYPASS=true          allow repo admins to bypass the ruleset
-#                              (set false for multi-maintainer repos wanting no bypass)
+#   ADMIN_BYPASS=false         allow repo admins to bypass the ruleset (default:
+#                              false — admins are subject to the same gates as
+#                              everyone, matching the prior enforce_admins:true
+#                              posture; set true for a solo repo needing a break-glass)
 #   REQUIRE_DEFAULT_BRANCH=true  refuse to target a non-default branch
 
 RULESET_NAME="${RULESET_NAME:-Main_Branch_Protections}"
@@ -37,7 +40,7 @@ REQUIRE_CODEOWNERS="${REQUIRE_CODEOWNERS:-true}"
 DISMISS_STALE="${DISMISS_STALE:-true}"
 REQUIRE_THREAD_RESOLUTION="${REQUIRE_THREAD_RESOLUTION:-true}"
 STRICT_STATUS_CHECKS="${STRICT_STATUS_CHECKS:-false}"
-ADMIN_BYPASS="${ADMIN_BYPASS:-true}"
+ADMIN_BYPASS="${ADMIN_BYPASS:-false}"
 APPLY="${APPLY:-false}"
 REQUIRE_DEFAULT_BRANCH="${REQUIRE_DEFAULT_BRANCH:-true}"
 SNAPSHOT_DIR="${SNAPSHOT_DIR:-.ai/bootstrap-snapshots}"
@@ -66,7 +69,7 @@ DEFAULT_BRANCH="$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.na
 if [[ "$REQUIRE_DEFAULT_BRANCH" == "true" && "$BRANCH" != "$DEFAULT_BRANCH" ]]; then
   echo "Refusing to target a non-default branch."
   echo "Default branch is '$DEFAULT_BRANCH'. Requested branch is '$BRANCH'."
-  echo "The ruleset targets ~DEFAULT_BRANCH. Set REQUIRE_DEFAULT_BRANCH=false to override this guard."
+  echo "Set REQUIRE_DEFAULT_BRANCH=false to target '$BRANCH' explicitly (refs/heads/$BRANCH)."
   exit 1
 fi
 
@@ -87,6 +90,16 @@ if [[ "$REQUIRE_CODEOWNERS" == "true" ]]; then
   fi
 fi
 
+# Ruleset target ref. Normally the default branch (via the ~DEFAULT_BRANCH token).
+# When REQUIRE_DEFAULT_BRANCH=false permits BRANCH to name a non-default branch,
+# target that branch explicitly — otherwise the override would silently protect
+# the default branch and leave the branch the operator named unprotected.
+if [[ "$BRANCH" == "$DEFAULT_BRANCH" ]]; then
+  REF_INCLUDE_JSON='["~DEFAULT_BRANCH"]'
+else
+  REF_INCLUDE_JSON="$(jq -n --arg b "refs/heads/$BRANCH" '[$b]')"
+fi
+
 CHECKS_JSON="$(printf '%s\n' "${CHECKS[@]}" | jq -R '{context: .}' | jq -s .)"
 
 if [[ "$ADMIN_BYPASS" == "true" ]]; then
@@ -105,12 +118,13 @@ RULESET_PAYLOAD="$(jq -n \
   --argjson strict "$STRICT_STATUS_CHECKS" \
   --argjson checks "$CHECKS_JSON" \
   --argjson bypass "$BYPASS_JSON" \
+  --argjson refinclude "$REF_INCLUDE_JSON" \
   '{
     name: $name,
     target: "branch",
     enforcement: "active",
     bypass_actors: $bypass,
-    conditions: { ref_name: { include: ["~DEFAULT_BRANCH"], exclude: [] } },
+    conditions: { ref_name: { include: $refinclude, exclude: [] } },
     rules: [
       {type: "deletion"},
       {type: "creation"},
@@ -137,6 +151,7 @@ EXISTING_ID="$(gh api "repos/$OWNER/$REPO/rulesets" --jq ".[] | select(.name==\"
 
 echo "Repository:      $OWNER_REPO"
 echo "Default branch:  $DEFAULT_BRANCH"
+echo "Target ref:      $(jq -r 'join(", ")' <<<"$REF_INCLUDE_JSON")"
 if [[ -n "$EXISTING_ID" ]]; then
   echo "Ruleset:         $RULESET_NAME (update id=$EXISTING_ID)"
 else

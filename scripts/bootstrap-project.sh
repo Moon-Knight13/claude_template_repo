@@ -93,7 +93,8 @@ options_literal() {
 # Set a single-select field's options (creates the field if missing).
 ensure_single_select() {
   local name="$1"; shift
-  local fid; fid="$(field_id "$name")"
+  local snapshot; snapshot="$(fields_json)"
+  local fid; fid="$(jq -r --arg n "$name" '.fields[] | select(.name == $n) | .id' <<<"$snapshot" | head -n1)"
   if [[ -z "$fid" ]]; then
     echo "Creating field '$name'..."
     local csv; csv="$(IFS=,; echo "$*")"
@@ -101,18 +102,52 @@ ensure_single_select() {
       --name "$name" --data-type SINGLE_SELECT --single-select-options "$csv" >/dev/null
     return
   fi
-  # Field exists — reconcile its options to the desired set.
-  local have want
-  have="$(fields_json | jq -r --arg n "$name" '.fields[] | select(.name==$n) | (.options // [])[].name' | sort)"
-  want="$(printf '%s\n' "$@" | sort)"
-  if [[ "$have" == "$want" ]]; then
-    echo "Field '$name' already aligned."
+  # Field exists — reconcile ADDITIVELY. updateProjectV2Field replaces the entire
+  # option set, and any option sent without an id is created fresh, so re-sending
+  # existing options by name alone would delete+recreate them and DETACH every card
+  # currently set to that option (e.g. a board still on the built-in Todo/Done).
+  # To preserve board state we keep every existing option verbatim (by its id) and
+  # append only the wanted options that are genuinely missing.
+  local existing
+  existing="$(gh api graphql -f query="query{node(id:\"$fid\"){... on ProjectV2SingleSelectField{options{id name color description}}}}" \
+    --jq '.data.node.options // []' 2>/dev/null || echo '[]')"
+
+  # Guard: if we couldn't read options but the field is known to have some, skip
+  # rather than risk wiping them.
+  local snap_count exist_count
+  snap_count="$(jq -r --arg n "$name" '[.fields[] | select(.name==$n) | (.options // [])[]] | length' <<<"$snapshot")"
+  exist_count="$(jq 'length' <<<"$existing")"
+  if [[ "$exist_count" == "0" && "${snap_count:-0}" != "0" ]]; then
+    echo "  WARN: could not read existing options for '$name' via API; skipping reconcile to avoid data loss. Set them in the board UI if needed: ${*}" >&2
     return
   fi
-  echo "Aligning options for field '$name'..."
-  local opts; opts="$(options_literal "$@")"
-  gh api graphql -f query="mutation{updateProjectV2Field(input:{fieldId:\"$fid\",singleSelectOptions:$opts}){projectV2Field{... on ProjectV2SingleSelectField{id}}}}" >/dev/null \
-    || echo "  WARN: could not update '$name' options automatically; set them in the board UI: ${*}" >&2
+
+  local missing=() opt
+  for opt in "$@"; do
+    jq -e --arg n "$opt" 'any(.[]; .name == $n)' <<<"$existing" >/dev/null \
+      || missing+=("$opt")
+  done
+  if [[ ${#missing[@]} -eq 0 ]]; then
+    echo "Field '$name' already has all required options."
+    return
+  fi
+  echo "Adding missing options to field '$name': ${missing[*]}"
+
+  # Existing options first (with ids → preserved), then the new ones (no id → created).
+  local kept new_lit combined
+  kept="$(jq -r '
+    def esc: gsub("\""; "\\\"");
+    [ .[] | "{id:\"\(.id)\",name:\"\(.name|esc)\",color:\(.color),description:\"\(.description // "" | esc)\"}" ] | join(",")
+  ' <<<"$existing")"
+  new_lit="$(options_literal "${missing[@]}")"   # -> [ {..},{..} ]
+  new_lit="${new_lit#[}"; new_lit="${new_lit%]}"
+  if [[ -n "$kept" && -n "$new_lit" ]]; then
+    combined="[$kept,$new_lit]"
+  else
+    combined="[${kept}${new_lit}]"
+  fi
+  gh api graphql -f query="mutation{updateProjectV2Field(input:{fieldId:\"$fid\",singleSelectOptions:$combined}){projectV2Field{... on ProjectV2SingleSelectField{id}}}}" >/dev/null \
+    || echo "  WARN: could not update '$name' options automatically; add these in the board UI: ${missing[*]}" >&2
 }
 
 # Status is the built-in board field; align it to the kanban flow.
