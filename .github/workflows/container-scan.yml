@@ -41,7 +41,7 @@ jobs:
       # Report step: capture CRITICAL+HIGH for visibility in the Security tab.
       # exit-code 0 so this step never fails the job — the gate step below decides.
       - name: Trivy scan (report CRITICAL+HIGH to Security tab)
-        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
           image-ref: devcontainer-scan:${{ github.sha }}
           format: sarif
@@ -61,7 +61,7 @@ jobs:
       # CRITICAL findings. HIGHs are still reported above for visibility.
       # Base-image OS CVEs are cleared by `apt-get upgrade` in the Dockerfile.
       - name: Trivy gate (fail on CRITICAL)
-        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
           image-ref: devcontainer-scan:${{ github.sha }}
           format: table
