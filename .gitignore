@@ -9,8 +9,10 @@ secrets.*
 *.pfx
 
 # Agent and local tool state
-# Ignore Claude runtime state but NOT template assets (.claude/commands/, settings files)
+# Ignore Claude runtime state and machine-local settings, but NOT template
+# assets (.claude/commands/, .claude/settings.json, .claude/settings.json.example).
 .claude/mcp.json
+.claude/settings.local.json
 .claude/todos/
 .claude/cache/
 .claude/history/
@@ -30,6 +32,10 @@ npm-debug.log*
 # OS/editor
 .DS_Store
 .vscode/settings.json
+
+# Devcontainer / tooling runtime artifacts (created in-container, not template assets)
+.gitconfig
+.cache/
 
 # Build artifacts
 dist/
