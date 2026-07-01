@@ -1,0 +1,46 @@
+name: semgrep
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: semgrep-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  semgrep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+
+      - name: Run semgrep
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -v "${{ github.workspace }}:/src" \
+            semgrep/semgrep@sha256:c98edb09ae3abcc870171df7446fd2df8426a6a7f6ff14ca1ac47f4a25bf1666 \
+            scan \
+              --config /src/.semgrep.yml \
+              --config p/secrets \
+              --config p/security-audit \
+              --error \
+              --metrics=off \
+              --sarif \
+              --output /src/semgrep.sarif \
+              /src
+
+      - name: Upload SARIF to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@8272c299f21ca24af15dfe9ac0971ba969e5e0d5
+        with:
+          sarif_file: semgrep.sarif

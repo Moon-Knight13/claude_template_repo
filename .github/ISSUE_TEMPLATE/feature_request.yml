@@ -1,0 +1,39 @@
+name: Feature Request
+description: Propose an addition or improvement to this template
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the gap or friction this feature would address.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe what you'd like to see added or changed.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you've thought about.
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - Security hardening
+        - AI routing / local models
+        - CI/CD
+        - Developer experience
+        - Documentation
+        - Other
+    validations:
+      required: true

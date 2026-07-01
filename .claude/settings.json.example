@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "local-ollama": {
+      "command": "npx",
+      "args": ["-y", "ollama-mcp-server"],
+      "env": {
+        "OLLAMA_HOST": "http://host.docker.internal:11434",
+        "OLLAMA_MODEL": "qwen2.5-coder:7b"
+      }
+    }
+  },
+  "_pii_shield_note": "PII-Shield (gregmos/PII-Shield) anonymizes content before it reaches Claude. Install manually: Settings > Extensions > drag in the .mcpb file. See docs/TEMPLATE_GUIDE.md#pii--privacy-controls for details."
+}

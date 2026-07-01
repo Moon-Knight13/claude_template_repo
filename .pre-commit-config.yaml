@@ -1,0 +1,27 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: mixed-line-ending
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.2
+    hooks:
+      - id: gitleaks
+        args: ["--config=.gitleaks.toml", "--redact", "--verbose"]
+
+  - repo: https://github.com/returntocorp/semgrep
+    rev: v1.83.0
+    hooks:
+      - id: semgrep
+        args: ["--config", ".semgrep.yml", "--error", "--metrics=off"]
+        # semgrep 1.83.0's opentelemetry dependency imports pkg_resources, which
+        # setuptools removed in v81. Pin a compatible setuptools so the hook's venv
+        # works on Python 3.12+ hosts (CI uses the semgrep Docker image, unaffected).
+        additional_dependencies: ["setuptools<81"]

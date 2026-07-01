@@ -1,0 +1,55 @@
+name: container-scan
+
+on:
+  pull_request:
+    paths:
+      - ".devcontainer/**"
+  push:
+    branches: [main]
+    paths:
+      - ".devcontainer/**"
+  schedule:
+    - cron: "0 8 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: container-scan-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  trivy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+
+      - name: Build devcontainer image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build \
+            --file .devcontainer/Dockerfile \
+            --build-arg CLAUDE_CODE_VERSION=latest \
+            --tag devcontainer-scan:${{ github.sha }} \
+            .
+
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8
+        with:
+          image-ref: devcontainer-scan:${{ github.sha }}
+          format: sarif
+          output: trivy.sarif
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+
+      - name: Upload Trivy SARIF to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@8272c299f21ca24af15dfe9ac0971ba969e5e0d5
+        with:
+          sarif_file: trivy.sarif

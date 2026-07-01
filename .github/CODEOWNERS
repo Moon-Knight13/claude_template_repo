@@ -1,0 +1,17 @@
+# CODEOWNERS — populate before running scripts/bootstrap-github-settings.sh
+# Without real owners, the "require code owner reviews" branch protection has no effect.
+# Replace @your-org/your-team with actual GitHub users or teams.
+#
+# Docs: https://docs.github.com/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default: all files require a review
+* @your-org/your-team
+
+# Security-sensitive paths require explicit ownership
+.devcontainer/ @your-org/your-team
+.github/ @your-org/your-team
+scripts/ @your-org/your-team
+.semgrep.yml @your-org/your-team
+.gitleaks.toml @your-org/your-team
+SECURITY.md @your-org/your-team
+CLAUDE.md @your-org/your-team

@@ -1,0 +1,126 @@
+rules:
+  # ─── Layer A: Fixed existing rules ────────────────────────────────────────────
+
+  - id: insecure-http-url
+    languages: [python, javascript, typescript, go, java]
+    message: "Insecure HTTP URL in source code. Use HTTPS unless accessing a local service."
+    severity: WARNING
+    # Negative lookahead excludes localhost, RFC-1918 ranges, and the devcontainer Ollama endpoint
+    pattern-regex: 'http://(?!localhost|127\.0\.0\.1|0\.0\.0\.0|host\.docker\.internal|10\.\d|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)[A-Za-z0-9._:/?&=%-]+'
+
+  - id: hardcoded-private-key-marker
+    languages: [generic]
+    message: "Private key material detected in source code. Remove immediately."
+    severity: ERROR
+    # Covers RSA, EC, OPENSSH, DSA, PKCS#8 (bare PRIVATE KEY), PUTTY, and encrypted variants
+    pattern-regex: '-----BEGIN (RSA |EC |OPENSSH |DSA |ENCRYPTED |PUTTY )?PRIVATE KEY-----'
+
+  # ─── Layer B: Anthropic API key ───────────────────────────────────────────────
+
+  - id: anthropic-api-key
+    languages: [generic]
+    message: "Anthropic API key detected. Revoke immediately at console.anthropic.com."
+    severity: ERROR
+    pattern-regex: 'sk-ant-api[0-9]{2}-[A-Za-z0-9_\-]{40,}'
+    metadata:
+      cwe: "CWE-312: Cleartext Storage of Sensitive Information"
+      fix: "Remove from source. Revoke at console.anthropic.com. Store in environment variables or a secrets manager."
+
+  # ─── Layer C: MITRE ATLAS — AI/ML threat coverage ─────────────────────────────
+  # See https://atlas.mitre.org for full technique descriptions.
+
+  - id: atlas-t0054-llm-output-exec
+    languages: [python]
+    message: "ATLAS AML.T0054 — LLM Output Execution: Executing LLM response content as code enables remote code execution via prompt injection."
+    severity: ERROR
+    pattern-either:
+      - pattern: eval($RESP.content[0].text)
+      - pattern: exec($RESP.content[0].text)
+      - pattern: eval($RESP.choices[0].message.content)
+      - pattern: exec($RESP.choices[0].message.content)
+      - pattern: os.system($RESP.content[0].text)
+      - pattern: subprocess.run($RESP.content[0].text, ...)
+      - pattern: subprocess.call($RESP.content[0].text, ...)
+    metadata:
+      atlas_technique: "AML.T0054"
+      severity: "ERROR"
+      fix: "Never execute LLM output directly as code. Parse expected structured output and validate against a schema before any execution."
+
+  - id: atlas-t0049-unverified-ml-artifact-shell
+    languages: [generic]
+    message: "ATLAS AML.T0049 — Unverified ML Artifact Fetch: Downloading model file without integrity verification. Add SHA256 check after download."
+    severity: WARNING
+    pattern-regex: '(wget|curl)\s+[^\n]*\.(gguf|bin|safetensors|pkl|pt|pth|onnx|h5)\b'
+    metadata:
+      atlas_technique: "AML.T0049"
+      severity: "WARNING"
+      fix: "After downloading, verify integrity: echo '<expected_sha256>  model.gguf' | sha256sum -c -"
+
+  - id: atlas-t0025-model-serialization
+    languages: [python]
+    message: "ATLAS AML.T0025 — Model Exfiltration Risk: Serializing model weights to disk. Ensure the destination path is authorized and access-controlled."
+    severity: WARNING
+    pattern-either:
+      - pattern: pickle.dump($MODEL, ...)
+      - pattern: torch.save($MODEL, ...)
+      - pattern: $MODEL.save_pretrained($PATH, ...)
+      - pattern: joblib.dump($MODEL, ...)
+    metadata:
+      atlas_technique: "AML.T0025"
+      severity: "WARNING"
+      fix: "Ensure model output paths are access-controlled. Audit and log serialization events."
+
+  - id: atlas-t0040-pii-in-prompt
+    languages: [python]
+    message: "ATLAS AML.T0040 — PII in Prompts: PII field name interpolated into LLM prompt string. Ensure sensitive data is not sent to external model APIs."
+    severity: WARNING
+    pattern-regex: 'f["''][^"''\n]*\{[^}\n]*(email|ssn|password|credit_card|social_security|date_of_birth|phone_number)[^}\n]*\}[^"''\n]*["'']'
+    metadata:
+      atlas_technique: "AML.T0040"
+      severity: "WARNING"
+      fix: "Redact or anonymize PII before including in prompts sent to external LLM APIs."
+
+  # ─── Layer D: PII in committed code ───────────────────────────────────────────
+
+  - id: pii-literal-email-in-code
+    languages: [python, javascript, typescript]
+    message: "Hardcoded real email address in source. Use an env variable or test@example.com placeholder."
+    severity: WARNING
+    pattern-either:
+      - pattern: '"$EMAIL"'
+      - pattern: "'$EMAIL'"
+    metavariable-regex:
+      metavariable: $EMAIL
+      regex: '[a-zA-Z0-9._%+\-]{2,}@(?!example\.|test\.|localhost)[a-zA-Z0-9.\-]{2,}\.[a-zA-Z]{2,}'
+    metadata:
+      atlas_technique: "AML.T0040"
+      severity: "WARNING"
+      fix: "Replace with an environment variable or a clearly fake fixture (e.g. test@example.com)"
+    paths:
+      exclude:
+        - "tests/"
+        - "test/"
+        - "*.test.ts"
+        - "*.test.js"
+        - "*.spec.ts"
+        - "*.spec.js"
+        - "docs/"
+
+  - id: pii-in-log-call
+    languages: [python, javascript, typescript]
+    message: "PII-named variable passed to a logging function. Redact or hash before logging."
+    severity: WARNING
+    pattern-either:
+      - pattern: console.log(..., $PII, ...)
+      - pattern: console.error(..., $PII, ...)
+      - pattern: console.warn(..., $PII, ...)
+      - pattern: logger.$METHOD(..., $PII, ...)
+      - pattern: logging.$METHOD(..., $PII, ...)
+      - pattern: print(..., $PII, ...)
+    metavariable-regex:
+      metavariable: $PII
+      regex: '.*(email|phone|ssn|credit_card|social_security|date_of_birth|national_insurance|nino|passport).*'
+    metadata:
+      atlas_technique: "AML.T0040"
+      severity: "WARNING"
+      fix: "Redact or hash PII before passing to logging (e.g. mask email domain, hash SSN)"

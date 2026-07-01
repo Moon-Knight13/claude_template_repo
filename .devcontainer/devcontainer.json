@@ -1,0 +1,69 @@
+{
+  "name": "Claude Code Sandbox",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "args": {
+      "TZ": "${localEnv:TZ:America/Los_Angeles}",
+      "CLAUDE_CODE_VERSION": "latest",
+      "GIT_DELTA_VERSION": "0.18.2",
+      "GIT_DELTA_SHA256_AMD64": "1658c7b61825d411b50734f34016101309e4b6e7f5799944cf8e4ac542cebd7f",
+      "GIT_DELTA_SHA256_ARM64": "937781aa7788e1510858743fff6c9a8b4a69fe0a22a7c8a69493e633227939a9",
+      "ZSH_IN_DOCKER_VERSION": "1.2.0",
+      "ZSH_IN_DOCKER_SHA256": "f74e5b08c295b6c3886654bb63c688e5ea16c58a4209435c4ddbab2c42fe9b41"
+    }
+  },
+  "runArgs": [
+    "--cap-add=NET_ADMIN",
+    "--cap-add=NET_RAW",
+    "--add-host=host.docker.internal:host-gateway"
+  ],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "anthropic.claude-code",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "eamodio.gitlens"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.codeActionsOnSave": {
+          "source.fixAll.eslint": "explicit"
+        },
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "terminal.integrated.profiles.linux": {
+          "bash": {
+            "path": "bash",
+            "icon": "terminal-bash"
+          },
+          "zsh": {
+            "path": "zsh"
+          }
+        }
+      }
+    }
+  },
+  "remoteUser": "node",
+  "mounts": [
+    "source=claude-code-bashhistory-${devcontainerId},target=/commandhistory,type=volume",
+    "source=claude-code-config-${devcontainerId},target=/home/node/.claude,type=volume"
+  ],
+  "containerEnv": {
+    "NODE_OPTIONS": "--max-old-space-size=4096",
+    "CLAUDE_CONFIG_DIR": "/home/node/.claude",
+    "POWERLEVEL9K_DISABLE_GITSTATUS": "true",
+    "LOCAL_MODEL_ENABLED": "true",
+    "LOCAL_MODEL_ENDPOINT": "http://host.docker.internal:11434",
+    "CAVEMAN_ENABLED": "1",
+    "CAVEMAN_INSTALL_SHA256": "8ddef49c15f089c26affed3c31d97142c683e1d37a1499ae557281ca09c2712c",
+    "CAVEMAN_MODE": "lite",
+    "BMAD_ENABLED": "1",
+    "GITHUB_TOKEN": "${localEnv:GITHUB_TOKEN}",
+    "SEMGREP_APP_TOKEN": "${localEnv:SEMGREP_APP_TOKEN}"
+  },
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
+  "workspaceFolder": "/workspace",
+  "postStartCommand": "sudo /usr/local/bin/init-firewall.sh && bash scripts/install-caveman.sh && bash scripts/install-bmad.sh && bash scripts/bootstrap-bmad.sh && bash scripts/bootstrap-precommit.sh && bash scripts/install-claude-plugins.sh",
+  "waitFor": "postStartCommand"
+}

@@ -1,0 +1,95 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-template:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+
+      - name: Validate template integrity
+        shell: bash
+        run: bash scripts/validate-template.sh
+
+  detect-and-route:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      has_node: ${{ steps.detect.outputs.has_node }}
+      has_python: ${{ steps.detect.outputs.has_python }}
+      has_go: ${{ steps.detect.outputs.has_go }}
+      has_rust: ${{ steps.detect.outputs.has_rust }}
+      has_java: ${{ steps.detect.outputs.has_java }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+
+      - name: Detect project markers
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ -f package.json ]] && echo "has_node=true" >> "$GITHUB_OUTPUT" || echo "has_node=false" >> "$GITHUB_OUTPUT"
+          ([[ -f pyproject.toml ]] || [[ -f requirements.txt ]]) && echo "has_python=true" >> "$GITHUB_OUTPUT" || echo "has_python=false" >> "$GITHUB_OUTPUT"
+          [[ -f go.mod ]] && echo "has_go=true" >> "$GITHUB_OUTPUT" || echo "has_go=false" >> "$GITHUB_OUTPUT"
+          [[ -f Cargo.toml ]] && echo "has_rust=true" >> "$GITHUB_OUTPUT" || echo "has_rust=false" >> "$GITHUB_OUTPUT"
+          ([[ -f pom.xml ]] || [[ -f build.gradle ]] || [[ -f build.gradle.kts ]]) && echo "has_java=true" >> "$GITHUB_OUTPUT" || echo "has_java=false" >> "$GITHUB_OUTPUT"
+
+  conditional-lint-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [detect-and-route]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+
+      - name: Execute conditional scripts
+        shell: bash
+        env:
+          HAS_NODE: ${{ needs.detect-and-route.outputs.has_node }}
+          HAS_PYTHON: ${{ needs.detect-and-route.outputs.has_python }}
+          HAS_GO: ${{ needs.detect-and-route.outputs.has_go }}
+          HAS_RUST: ${{ needs.detect-and-route.outputs.has_rust }}
+          HAS_JAVA: ${{ needs.detect-and-route.outputs.has_java }}
+        run: |
+          set -euo pipefail
+
+          run_or_fail() {
+            local marker="$1"
+            local script="$2"
+            if [[ "$marker" == "true" ]]; then
+              if [[ ! -f "$script" ]]; then
+                echo "Missing required script for detected stack: $script"
+                exit 1
+              fi
+              bash "$script"
+            fi
+          }
+
+          run_or_fail "$HAS_NODE" "scripts/ci/lint-node.sh"
+          run_or_fail "$HAS_NODE" "scripts/ci/test-node.sh"
+
+          run_or_fail "$HAS_PYTHON" "scripts/ci/lint-python.sh"
+          run_or_fail "$HAS_PYTHON" "scripts/ci/test-python.sh"
+
+          run_or_fail "$HAS_GO" "scripts/ci/lint-go.sh"
+          run_or_fail "$HAS_GO" "scripts/ci/test-go.sh"
+
+          run_or_fail "$HAS_RUST" "scripts/ci/lint-rust.sh"
+          run_or_fail "$HAS_RUST" "scripts/ci/test-rust.sh"
+
+          run_or_fail "$HAS_JAVA" "scripts/ci/lint-java.sh"
+          run_or_fail "$HAS_JAVA" "scripts/ci/test-java.sh"

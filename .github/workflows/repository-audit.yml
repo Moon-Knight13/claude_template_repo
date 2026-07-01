@@ -1,0 +1,58 @@
+name: repository-audit
+
+on:
+  schedule:
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit-required-files:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11
+
+      - name: Validate required files exist and are non-empty
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            "README.md"
+            "SECURITY.md"
+            "CLAUDE.md"
+            ".github/CODEOWNERS"
+            ".github/workflows/ci.yml"
+            ".github/workflows/secret-scan.yml"
+            ".github/workflows/semgrep.yml"
+            "scripts/bootstrap-github-settings.sh"
+          )
+
+          for file in "${required[@]}"; do
+            if [[ ! -f "$file" ]]; then
+              echo "FAIL: Missing required file: $file"
+              exit 1
+            fi
+            if [[ ! -s "$file" ]]; then
+              echo "FAIL: Required file is empty: $file"
+              exit 1
+            fi
+            echo "OK: $file"
+          done
+
+      - name: Validate CODEOWNERS is customized
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -q "@your-org/your-team" .github/CODEOWNERS; then
+            echo "FAIL: .github/CODEOWNERS still contains placeholder '@your-org/your-team'."
+            echo "      Update CODEOWNERS with real GitHub users or teams before enabling branch protection."
+            exit 1
+          fi
+          echo "OK: CODEOWNERS does not contain placeholder values"
+
+      - name: Audit complete
+        run: echo "Repository audit passed."

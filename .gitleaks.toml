@@ -1,0 +1,121 @@
+title = "Template Gitleaks Config"
+
+# Extend the built-in gitleaks ruleset (100+ rules for AWS, GitHub, Stripe, Slack, Google, etc.)
+# Without this, specifying --config replaces the defaults entirely — only custom rules would run.
+[extend]
+useDefault = true
+
+# ── Custom: Anthropic API key ─────────────────────────────────────────────────
+
+[[rules]]
+id = "anthropic-api-key"
+description = "Anthropic API key"
+regex = '''sk-ant-api[0-9]{2}-[A-Za-z0-9_\-]{40,}'''
+tags = ["api-key", "anthropic"]
+severity = "critical"
+
+  [rules.allowlist]
+  description = "Ignore documented placeholder patterns for Anthropic keys"
+  regexes = [
+    '''sk-ant-api.*example''',
+    '''sk-ant-api.*placeholder''',
+    '''sk-ant-api.*your[-_]?key''',
+  ]
+
+# ── PII Rules ─────────────────────────────────────────────────────────────────
+
+[[rules]]
+id = "pii-email"
+description = "Real email address committed to repo"
+regex = '''[a-zA-Z0-9._%+\-]{2,}@[a-zA-Z0-9.\-]{2,}\.[a-zA-Z]{2,}'''
+tags = ["pii", "email"]
+
+  [rules.allowlist]
+  regexes = [
+    # Safe domains used for examples and test fixtures
+    '''@example\.(com|org|net|io|test)''',
+    '''@(test|localhost|invalid|local)\b''',
+    # Common placeholder names
+    '''(your[-_]?email|noreply@|no-reply@|postmaster@|webmaster@)''',
+    # Version strings that happen to match (e.g. "1.2.3@github")
+    '''\d+\.\d+\.\d+@''',
+  ]
+  paths = [
+    '''(^|\/)README\.md$''',
+    '''(^|\/)docs\/''',
+    '''(^|\/)\.env\.example$''',
+    '''(^|\/).*\.test\.(ts|js|py)$''',
+    '''(^|\/).*_test\.(go|py)$''',
+    '''(^|\/)tests?\/''',
+  ]
+
+[[rules]]
+id = "pii-credit-card"
+description = "Potential credit card number (Visa, Mastercard, Amex, Discover)"
+# Card-issuer-specific prefixes only — avoids the high false-positive rate of generic 16-digit patterns
+regex = '''\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})\b'''
+tags = ["pii", "credit-card"]
+
+  [rules.allowlist]
+  # Well-known test card numbers from Stripe, PayPal, Adyen test suites
+  regexes = ['''4242424242424242|4111111111111111|5500005555555552|378282246310005|6011111111111117''']
+  paths = ['''(^|\/)tests?\/''', '''(^|\/)docs\/''']
+
+[[rules]]
+id = "pii-ssn"
+description = "US Social Security Number"
+# Matches the NNN-NN-NNNN SSN shape. Gitleaks uses Go's RE2 engine, which has no
+# lookahead support, so invalid-prefix exclusion (000/666/9xx) is handled by the
+# allowlist below rather than in the pattern. Broader matching only adds false
+# positives (never false negatives), which is the safe direction for a PII rule.
+regex = '''\b\d{3}-\d{2}-\d{4}\b'''
+tags = ["pii", "ssn"]
+
+  [rules.allowlist]
+  regexes = ['''(example|test|fake|dummy|placeholder|sample)''']
+  paths = [
+    '''(^|\/)tests?\/''',
+    '''(^|\/)docs\/''',
+    '''(^|\/)README\.md$''',
+  ]
+
+[[rules]]
+id = "pii-uk-nino"
+description = "UK National Insurance Number"
+# Very specific format — low false positive rate. Gitleaks (Go RE2) has no lookahead,
+# so the invalid-prefix exclusion (BG/GB/NK/KN/TN/NT/ZZ) is omitted from the pattern;
+# the character-class restrictions already keep the false-positive rate low.
+regex = '''\b[A-CEGHJ-PR-TW-Z]{2}\d{6}[A-D]\b'''
+tags = ["pii", "uk-nino"]
+
+  [rules.allowlist]
+  paths = ['''(^|\/)tests?\/''', '''(^|\/)docs\/''']
+
+[[rules]]
+id = "pii-phone-e164"
+description = "E.164 international phone number (UK, US, AU, NZ, IE)"
+# Only matches structured E.164 format — avoids false positives from bare number sequences
+regex = '''\+(?:44|1|61|64|353)\s?\(?\d{1,4}\)?[\s\-]?\d{3,4}[\s\-]?\d{3,4}\b'''
+tags = ["pii", "phone"]
+
+  [rules.allowlist]
+  # Standard TV/film placeholder numbers (555 exchange in US, 07700 9xxxxx in UK)
+  regexes = ['''555[- ]?\d{4}''', '''\+447700\s?9\d{5}''']
+  paths = [
+    '''(^|\/)tests?\/''',
+    '''(^|\/)docs\/''',
+    '''(^|\/)README\.md$''',
+  ]
+
+# ── Global allowlist ──────────────────────────────────────────────────────────
+
+[allowlist]
+description = "Global allowlist for known non-secret test strings"
+paths = [
+  '''(^|\/)README\.md$''',
+]
+regexes = [
+  '''example[_-]?token''',
+  '''dummy[_-]?secret''',
+  '''your[-_]?api[-_]?key''',
+]
