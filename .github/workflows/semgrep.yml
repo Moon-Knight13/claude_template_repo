@@ -25,8 +25,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # HOME=/tmp gives the non-root container user a writable home; without it
+          # semgrep tries to create /.semgrep and fails with a PermissionError.
           docker run --rm \
             --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp \
             -v "${{ github.workspace }}:/src" \
             semgrep/semgrep@sha256:c98edb09ae3abcc870171df7446fd2df8426a6a7f6ff14ca1ac47f4a25bf1666 \
             semgrep scan \
@@ -40,7 +43,7 @@ jobs:
               /src
 
       - name: Upload SARIF to GitHub Security tab
-        if: always()
+        if: ${{ always() && hashFiles('semgrep.sarif') != '' }}
         uses: github/codeql-action/upload-sarif@8272c299f21ca24af15dfe9ac0971ba969e5e0d5
         with:
           sarif_file: semgrep.sarif
