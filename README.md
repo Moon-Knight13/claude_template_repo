@@ -7,6 +7,7 @@ A language-agnostic, production-ready template for Claude-first development. Pro
 - **AI routing** — routes low-risk work to a local Ollama model; escalates to Claude for security, architecture, and cross-cutting changes
 - **Security gates** — gitleaks secret scanning, semgrep SAST (including MITRE ATLAS AI/ML rules), Trivy container scanning, all enforced in CI
 - **BMAD workflow** — structured product → engineering planning via the `/bmad` skill
+- **Kanban orchestration** — a per-repo GitHub Project board where a human orchestrator hands work to Claude sessions or local models; agents claim issues collision-free via `/next-issue` and `/run-epic` (see [docs/KANBAN_WORKFLOW.md](docs/KANBAN_WORKFLOW.md))
 - **Devcontainer** — deny-by-default network firewall, pre-installed tooling, Claude CLI with mounted auth volume
 - **Branch protection bootstrap** — one-command GitHub branch protection with required status checks
 - **Day-0 validation** — `/day0-check` walks you through every setup step with pass/fail output and remediation hints
@@ -43,11 +44,11 @@ See [docs/TEMPLATE_GUIDE.md](docs/TEMPLATE_GUIDE.md) for the full setup guide in
 ## Repository Structure
 
 ```
-.claude/commands/    Claude Code skills (/bmad, /day0-check, /route-task, /security-audit)
+.claude/commands/    Claude Code skills (/bmad, /bmad-to-board, /next-issue, /run-epic, /day0-check, /route-task, /security-audit)
 .devcontainer/       Dev environment with deny-by-default firewall and pre-installed tooling
-.github/             Workflows (CI, secret scan, semgrep, container scan, weekly audit)
-docs/                TEMPLATE_GUIDE.md, AI_ROUTING_POLICY.md, BMAD_WORKFLOW.md
-scripts/             Bootstrap, routing, CI helpers, and template validator
+.github/             Workflows (CI, secret scan, semgrep, container scan, weekly audit); issue & PR templates
+docs/                TEMPLATE_GUIDE.md, AI_ROUTING_POLICY.md, BMAD_WORKFLOW.md, KANBAN_WORKFLOW.md
+scripts/             Bootstrap (incl. board), routing, CI helpers, and template validator
 ```
 
 ## Deriving a New Project
@@ -59,6 +60,7 @@ When you start a new project from this template:
 3. Add `scripts/ci/lint-*.sh` and `scripts/ci/test-*.sh` for your language stack (see `scripts/ci/README.md`).
 4. Copy config files: `cp .env.example .env && cp .claude/settings.json.example .claude/settings.json`
 5. Run `APPLY=true bash scripts/bootstrap-github-settings.sh` to enable branch protection.
+6. Set up the Kanban board: `gh auth refresh -s project` then `APPLY=true bash scripts/bootstrap-project.sh` (see [docs/KANBAN_WORKFLOW.md](docs/KANBAN_WORKFLOW.md)).
 
 ## License
 
