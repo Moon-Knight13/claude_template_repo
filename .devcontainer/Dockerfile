@@ -82,19 +82,26 @@ ENV SHELL=/bin/zsh
 ENV EDITOR=nano
 ENV VISUAL=nano
 
-# Download, SHA256-verify, then install zsh theme
+# Download, SHA256-verify, then install zsh theme.
+# Run as root: zsh-in-docker's dependency step calls `sudo` when it isn't root,
+# which fails in a non-interactive build (no passwordless sudo yet). We target
+# HOME=/home/node so the theme installs into the node user's home, then restore
+# ownership before dropping back to the node user.
+USER root
 ARG ZSH_IN_DOCKER_VERSION=1.2.0
 ARG ZSH_IN_DOCKER_SHA256=f74e5b08c295b6c3886654bb63c688e5ea16c58a4209435c4ddbab2c42fe9b41
 RUN wget "https://github.com/deluan/zsh-in-docker/releases/download/v${ZSH_IN_DOCKER_VERSION}/zsh-in-docker.sh" -O /tmp/zsh-in-docker.sh && \
   echo "${ZSH_IN_DOCKER_SHA256}  /tmp/zsh-in-docker.sh" | sha256sum -c - && \
-  sh /tmp/zsh-in-docker.sh -- \
+  HOME=/home/node sh /tmp/zsh-in-docker.sh -- \
     -p git \
     -p fzf \
     -a "source /usr/share/doc/fzf/examples/key-bindings.zsh" \
     -a "source /usr/share/doc/fzf/examples/completion.zsh" \
     -a "export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \
     -x && \
+  chown -R node:node /home/node && \
   rm /tmp/zsh-in-docker.sh
+USER node
 
 # Install Claude
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
