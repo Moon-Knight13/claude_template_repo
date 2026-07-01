@@ -15,6 +15,14 @@ plugins=(
   semgrep@claude-plugins-official
 )
 
+# Register the official Anthropic marketplace before installing. `marketplace add`
+# is idempotent (no-op if already on disk), and `update` refreshes the cache so
+# newly published plugins resolve. Without this, `plugin install <x>@claude-plugins-official`
+# fails with "not found in marketplace 'claude-plugins-official'".
+echo "Registering marketplace claude-plugins-official..."
+claude plugin marketplace add anthropics/claude-plugins-official
+claude plugin marketplace update claude-plugins-official
+
 installed=$(claude plugin list 2>/dev/null || echo "")
 
 for plugin in "${plugins[@]}"; do
@@ -23,7 +31,7 @@ for plugin in "${plugins[@]}"; do
     echo "Already installed: ${name}"
   else
     echo "Installing: ${name}"
-    claude plugin install "${plugin}"
+    claude plugin install "${plugin}" --scope user
   fi
 done
 

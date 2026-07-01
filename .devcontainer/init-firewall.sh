@@ -73,18 +73,31 @@ fi
 
 echo "Processing GitHub IPs..."
 while read -r cidr; do
+    # Skip IPv6 ranges: the allowed-domains ipset is IPv4-only (hash:net) and
+    # IPv6 egress is already denied by default above. GitHub's meta API now
+    # returns IPv6 CIDRs (e.g. 2606:50c0::/32); GitHub stays reachable over IPv4.
+    if [[ "$cidr" == *:* ]]; then
+        continue
+    fi
     if [[ ! "$cidr" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}/[0-9]{1,2}$ ]]; then
         echo "ERROR: Invalid CIDR range from GitHub meta: $cidr"
         exit 1
     fi
     echo "Adding GitHub range $cidr"
-    ipset add allowed-domains "$cidr"
+    ipset add -exist allowed-domains "$cidr"
 done < <(echo "$gh_ranges" | jq -r '(.web + .api + .git)[]' | sort -u)
 
 # Resolve and add critical allowed domains
+# codeload.github.com and *.githubusercontent.com are NOT covered by the GitHub
+# meta web/api/git ranges above (codeload uses separate IPs; githubusercontent is
+# Fastly-hosted), but the provisioning installers fetch tarballs/scripts from
+# them, so allow their current A records explicitly.
 for domain in \
     "registry.npmjs.org" \
     "api.anthropic.com" \
+    "codeload.github.com" \
+    "raw.githubusercontent.com" \
+    "objects.githubusercontent.com" \
     "marketplace.visualstudio.com" \
     "vscode.blob.core.windows.net" \
     "update.code.visualstudio.com"; do
@@ -101,7 +114,7 @@ for domain in \
             exit 1
         fi
         echo "Adding $ip for $domain"
-        ipset add allowed-domains "$ip"
+        ipset add -exist allowed-domains "$ip"
     done < <(echo "$ips")
 done
 
@@ -123,7 +136,7 @@ for domain in \
             continue
         fi
         echo "Adding optional $ip for $domain"
-        ipset add allowed-domains "$ip"
+        ipset add -exist allowed-domains "$ip"
     done < <(echo "$ips")
 done
 
