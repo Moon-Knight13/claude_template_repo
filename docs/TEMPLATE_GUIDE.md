@@ -282,10 +282,11 @@ Manual per new repository:
 
 | Component | Default Pin |
 |-----------|------------|
-| BMAD | 6.9.0 |
-| Caveman | v1.9.0 |
-| Semgrep | 1.83.0 |
-| Gitleaks | 8.24.2 |
+| BMAD | 6.9.0 (`scripts/install-bmad.sh`) |
+| Caveman | v1.9.0 (`scripts/install-caveman.sh`) |
+| Semgrep | pinned by image digest in `semgrep.yml`, tracked by Dependabot |
+| Gitleaks | pinned by image digest in `secret-scan.yml`, tracked by Dependabot |
+| Trivy | pinned by action SHA in `container-scan.yml`, tracked by Dependabot |
 
 ## Version and Upgrade Policy
 

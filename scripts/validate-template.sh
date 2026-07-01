@@ -82,13 +82,14 @@ done < <(find scripts -name "*.sh" -print0)
 # 3. .claude/ template files are not gitignored
 echo ""
 echo "[3] Git-track check (.claude/ template files):"
+# settings.local.json is intentionally NOT listed here — it is machine-local and
+# gitignored so per-developer permissions don't propagate to derived repos.
 for f in \
     .claude/commands/bmad.md \
     .claude/commands/day0-check.md \
     .claude/commands/route-task.md \
     .claude/commands/security-audit.md \
-    .claude/settings.json.example \
-    .claude/settings.local.json; do
+    .claude/settings.json.example; do
     if [[ ! -f "$f" ]]; then
         check "$f is NOT gitignored" "fail" "File doesn't exist — create it first"
         continue
