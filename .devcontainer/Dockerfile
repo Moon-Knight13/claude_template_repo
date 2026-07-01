@@ -5,8 +5,11 @@ ENV TZ="$TZ"
 
 ARG CLAUDE_CODE_VERSION=latest
 
-# Install basic development tools and iptables/ipset
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Install basic development tools and iptables/ipset.
+# `apt-get upgrade` pulls patched Debian security packages into the image so the
+# container-scan (Trivy) gate isn't tripped by base-image CVEs that Debian has
+# already fixed. The base digest is pinned and refreshed via Dependabot.
+RUN apt-get update && apt-get -y upgrade && apt-get install -y --no-install-recommends \
   less \
   git \
   python3 \

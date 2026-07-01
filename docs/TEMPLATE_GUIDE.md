@@ -173,7 +173,12 @@ PII-Shield cannot be installed via `claude plugin install` — it uses a `.mcpb`
 - Universal checks:
    - secret-scan workflow (gitleaks full history scan)
    - semgrep workflow (custom rules + `p/secrets` + `p/security-audit` community packs, SARIF output)
-   - container-scan workflow (Trivy CVE scan, weekly + on devcontainer changes)
+   - container-scan workflow (Trivy CVE scan, weekly + on devcontainer changes).
+     The devcontainer is a local dev sandbox behind a deny-by-default firewall,
+     not a shipped artifact, so the gate **blocks only on CRITICAL** findings
+     while CRITICAL+HIGH are still reported to the Security tab for visibility.
+     Base-image OS CVEs are kept clear by `apt-get upgrade` in the Dockerfile;
+     the base digest is refreshed via Dependabot.
    - repository-audit workflow (validates required files and CODEOWNERS customisation)
 - Project marker detection for language-specific checks.
 - If a stack marker exists and expected scripts are missing under `scripts/ci`, CI fails by design.

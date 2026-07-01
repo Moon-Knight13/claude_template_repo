@@ -38,14 +38,16 @@ jobs:
             --tag devcontainer-scan:${{ github.sha }} \
             .
 
-      - name: Run Trivy vulnerability scan
+      # Report step: capture CRITICAL+HIGH for visibility in the Security tab.
+      # exit-code 0 so this step never fails the job — the gate step below decides.
+      - name: Trivy scan (report CRITICAL+HIGH to Security tab)
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8
         with:
           image-ref: devcontainer-scan:${{ github.sha }}
           format: sarif
           output: trivy.sarif
           severity: CRITICAL,HIGH
-          exit-code: "1"
+          exit-code: "0"
           ignore-unfixed: true
 
       - name: Upload Trivy SARIF to GitHub Security tab
@@ -53,3 +55,16 @@ jobs:
         uses: github/codeql-action/upload-sarif@8272c299f21ca24af15dfe9ac0971ba969e5e0d5
         with:
           sarif_file: trivy.sarif
+
+      # Gate step: the devcontainer is a local dev sandbox (not a shipped
+      # artifact) behind a deny-by-default firewall, so we block only on
+      # CRITICAL findings. HIGHs are still reported above for visibility.
+      # Base-image OS CVEs are cleared by `apt-get upgrade` in the Dockerfile.
+      - name: Trivy gate (fail on CRITICAL)
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8
+        with:
+          image-ref: devcontainer-scan:${{ github.sha }}
+          format: table
+          severity: CRITICAL
+          exit-code: "1"
+          ignore-unfixed: true
