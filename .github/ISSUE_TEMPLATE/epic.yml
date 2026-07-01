@@ -1,0 +1,65 @@
+name: Epic
+description: A large body of work that groups related user stories for the board
+title: "[Epic] "
+labels: ["epic"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        An epic is owned by one person. Child stories are tracked as a checklist
+        below and picked up individually via `/next-issue` (see docs/KANBAN_WORKFLOW.md).
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One or two sentences describing this epic.
+    validations:
+      required: true
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Goal / outcome
+      description: What does "done" look like for the whole epic? The user-facing or business outcome.
+    validations:
+      required: true
+
+  - type: textarea
+    id: stories
+    attributes:
+      label: Child stories
+      description: Task-list of child story issues. Add or link stories as they are created (e.g. via /bmad-to-board).
+      value: |
+        - [ ] #
+    validations:
+      required: false
+
+  - type: dropdown
+    id: bmad_stage
+    attributes:
+      label: BMAD Stage
+      description: Which BMAD stage does this epic currently sit in?
+      options:
+        - Discovery
+        - Requirements
+        - Architecture
+        - Task Decomposition
+        - Implementation
+        - Security & Release
+      default: 0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: route
+    attributes:
+      label: Suggested Route
+      description: Who is expected to drive most of this work? (Board Route field; see scripts/route-model.sh.)
+      options:
+        - Human
+        - Claude
+        - Local
+      default: 0
+    validations:
+      required: true

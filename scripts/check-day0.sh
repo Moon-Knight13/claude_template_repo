@@ -81,7 +81,23 @@ else
         "Set GITHUB_TOKEN in your .env file or host shell profile. Create at: https://github.com/settings/tokens"
 fi
 
-# 7. Ollama (optional — warn only if LOCAL_MODEL_ENABLED=true)
+# 7. GitHub Projects scope granted (needed to create/manage the Kanban board)
+if gh auth status 2>&1 | grep -qi "project"; then
+    check "gh has Projects scope" "pass" ""
+else
+    check "gh has Projects scope" "fail" \
+        "Grant it with: gh auth refresh -s project"
+fi
+
+# 8. Kanban board bootstrapped
+if [[ -f ".ai/project-bootstrap-completed" ]]; then
+    check "Kanban board bootstrapped" "pass" ""
+else
+    check "Kanban board bootstrapped" "fail" \
+        "Run: APPLY=true bash scripts/bootstrap-project.sh"
+fi
+
+# 9. Ollama (optional — warn only if LOCAL_MODEL_ENABLED=true)
 LOCAL_MODEL_ENABLED="${LOCAL_MODEL_ENABLED:-true}"
 if [[ "$LOCAL_MODEL_ENABLED" == "true" ]]; then
     LOCAL_MODEL_ENDPOINT="${LOCAL_MODEL_ENDPOINT:-http://host.docker.internal:11434}"

@@ -44,6 +44,16 @@ Escalate to Claude if any condition is true:
 4. Local endpoint is unavailable.
 5. Test failures persist after one local attempt.
 
+## Kanban / Board
+Work is tracked on a per-repo GitHub Project board (see `docs/KANBAN_WORKFLOW.md`).
+- The board **Route** field (Human / Claude / Local) is the routing protocol made
+  visible; it is derived from `scripts/route-model.sh` via `scripts/suggest-route.sh`. Keep them consistent.
+- Agents pick up work with `/next-issue`, which claims a card collision-safely
+  (`scripts/board.sh claim`: self-assign + `wip` + In Progress + re-check).
+- Golden rule: never touch a card that is already assigned or In Progress. One
+  branch and one PR (`Closes #<n>`) per story. Orchestrate epics with `/run-epic`.
+- All board writes go through `scripts/board.sh` (gh-CLI, no secrets).
+
 ## Guardrails
 - Never place credentials or tokens in repository files.
 - Keep Claude auth in mounted user config outside workspace files.

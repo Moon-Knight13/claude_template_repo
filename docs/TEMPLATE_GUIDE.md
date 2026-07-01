@@ -111,6 +111,8 @@ After the devcontainer starts, these steps require human input and cannot be aut
 | Copy env config | `cp .env.example .env` | Per-developer preferences and optional secrets |
 | Copy Claude MCP config | `cp .claude/settings.json.example .claude/settings.json` | Endpoint and model may differ per machine |
 | Set GITHUB_TOKEN | Add to `.env` or host shell profile | Required for the github plugin to access repos/PRs/issues |
+| Grant Projects scope | `gh auth refresh -s project` | Required to create/manage the Kanban board (Projects v2) |
+| Create the Kanban board | `APPLY=true bash scripts/bootstrap-project.sh` | Creates the per-repo Project board, fields, and labels |
 | Install Ollama (optional) | See [Ollama docs](https://ollama.com) | Only needed if you want local model routing |
 
 Run `bash scripts/check-day0.sh` at any time to see which steps are still pending.
@@ -211,6 +213,27 @@ Stage flow:
 
 See [docs/BMAD_WORKFLOW.md](BMAD_WORKFLOW.md).
 
+## Kanban & Agent Orchestration
+
+A per-repo GitHub Project v2 board turns BMAD planning into trackable work that a
+human orchestrator hands off to Claude sessions or local models — solo, or across
+a team without agents stepping on each other. It is entirely `gh`-CLI driven:
+**no API keys, no secrets, no Claude-in-CI**. Claude acts through your
+interactive session and `gh`.
+
+- Columns: `Backlog → Ready → In Progress → In Review → Done`.
+- Fields: **BMAD Stage** and **Route** (Human / Claude / Local, derived from
+  `scripts/route-model.sh` via `scripts/suggest-route.sh`).
+- Coordination: a collision-safe **claim protocol** (`scripts/board.sh claim` —
+  self-assign + `wip` lock + In Progress + re-check), one branch per issue, and
+  git worktrees for parallel subagents.
+
+Setup is two commands (`gh auth refresh -s project`, then
+`APPLY=true bash scripts/bootstrap-project.sh`). Populate the board from planning
+with `/bmad-to-board`, then build cards with `/next-issue` or orchestrate an epic
+with `/run-epic`. Full playbook (solo + team) in
+[docs/KANBAN_WORKFLOW.md](KANBAN_WORKFLOW.md).
+
 ## Claude Code Skills and Plugins
 
 ### Official plugins (auto-installed at startup)
@@ -234,6 +257,9 @@ These slash commands are defined in `.claude/commands/` and are specific to this
 | Command | Purpose |
 |---------|---------|
 | `/bmad` | Start a BMAD planning session for the current task |
+| `/bmad-to-board` | Turn a BMAD decomposition into epic + story issues on the Kanban board |
+| `/next-issue` | Claim the next ready card (collision-safe), build it, open a PR |
+| `/run-epic` | Take ownership of an epic and fan its stories out to subagents |
 | `/route-task` | Invoke the model routing protocol explicitly |
 | `/day0-check` | Validate day-0 setup and get guided remediation |
 | `/security-audit` | Full security scan with MITRE ATLAS + PII coverage mapping |

@@ -1,0 +1,68 @@
+name: User Story
+description: A single unit of work for the Kanban board, ready to be claimed and built
+title: "[Story] "
+labels: ["story"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A story is one branch, one PR, one card. Once it is on the board and marked
+        `agent-ready`, it can be claimed via `/next-issue`. See docs/KANBAN_WORKFLOW.md.
+
+  - type: textarea
+    id: story
+    attributes:
+      label: Story
+      description: Classic role / need / benefit framing.
+      value: |
+        **As a** [role]
+        **I need** [function]
+        **So that** [benefit]
+    validations:
+      required: true
+
+  - type: textarea
+    id: details
+    attributes:
+      label: Details and assumptions
+      description: What you already know — constraints, links, edge cases.
+      value: |
+        * [document what you know]
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Gherkin scenarios that define done. These are what the PR must satisfy.
+      value: |
+        ```gherkin
+        Given [some context]
+        When [certain action is taken]
+        Then [the outcome of action is observed]
+        ```
+    validations:
+      required: true
+
+  - type: input
+    id: parent_epic
+    attributes:
+      label: Parent epic
+      description: Issue number of the epic this story belongs to (e.g. #12), if any.
+      placeholder: "#"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: route
+    attributes:
+      label: Suggested Route
+      description: Who should pick this up? (Board Route field; see scripts/route-model.sh.)
+      options:
+        - Human
+        - Claude
+        - Local
+      default: 1
+    validations:
+      required: true

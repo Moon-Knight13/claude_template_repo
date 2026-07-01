@@ -43,18 +43,27 @@ for f in \
     .devcontainer/init-firewall.sh \
     .claude/settings.json.example \
     .claude/commands/bmad.md \
+    .claude/commands/bmad-to-board.md \
+    .claude/commands/next-issue.md \
+    .claude/commands/run-epic.md \
     .claude/commands/day0-check.md \
     .claude/commands/route-task.md \
     .claude/commands/security-audit.md \
+    .github/ISSUE_TEMPLATE/epic.yml \
+    .github/ISSUE_TEMPLATE/user-story.yml \
     docs/TEMPLATE_GUIDE.md \
     docs/AI_ROUTING_POLICY.md \
     docs/BMAD_WORKFLOW.md \
+    docs/KANBAN_WORKFLOW.md \
     docs/README.template.md \
     scripts/route-model.sh \
     scripts/ask-local.sh \
+    scripts/suggest-route.sh \
+    scripts/board.sh \
     scripts/check-day0.sh \
     scripts/validate-template.sh \
     scripts/bootstrap-github-settings.sh \
+    scripts/bootstrap-project.sh \
     scripts/bootstrap-precommit.sh \
     scripts/bootstrap-bmad.sh \
     scripts/install-bmad.sh \
@@ -86,6 +95,9 @@ echo "[3] Git-track check (.claude/ template files):"
 # gitignored so per-developer permissions don't propagate to derived repos.
 for f in \
     .claude/commands/bmad.md \
+    .claude/commands/bmad-to-board.md \
+    .claude/commands/next-issue.md \
+    .claude/commands/run-epic.md \
     .claude/commands/day0-check.md \
     .claude/commands/route-task.md \
     .claude/commands/security-audit.md \
