@@ -2,16 +2,49 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+# Configure GitHub repository protections to the template's standard.
+#
+# Uses a repository RULESET (not legacy branch protection) targeting the default
+# branch. Idempotent: creates the ruleset if it does not exist, updates it in
+# place if a ruleset of the same name already exists.
+#
+# The ruleset enforces:
+#   - pull request required, with N approving reviews (default 1)
+#   - required status checks: the template's universal gates (validate-template,
+#     semgrep, gitleaks) must pass before merge
+#   - linear history; no force-pushes, deletions, or direct pushes to the branch
+#
+# Safe by default: dry-run unless APPLY=true, only touches the default branch,
+# and refuses to require code-owner reviews while CODEOWNERS is still a placeholder.
+#
+# Environment overrides:
+#   APPLY=true                 actually mutate settings (default: dry-run)
+#   RULESET_NAME=...           ruleset name (default: Main_Branch_Protections)
+#   REQUIRED_APPROVALS=1       approving reviews required
+#   REQUIRE_CODEOWNERS=true    require code-owner review (guarded by placeholder check)
+#   DISMISS_STALE=true         dismiss stale approvals on new pushes
+#   REQUIRE_THREAD_RESOLUTION=true   require all review threads resolved
+#   REQUIRED_CHECKS=a,b,c      status-check contexts (bare job names)
+#   STRICT_STATUS_CHECKS=false require branch up to date before merge
+#   ADMIN_BYPASS=true          allow repo admins to bypass the ruleset
+#                              (set false for multi-maintainer repos wanting no bypass)
+#   REQUIRE_DEFAULT_BRANCH=true  refuse to target a non-default branch
+
+RULESET_NAME="${RULESET_NAME:-Main_Branch_Protections}"
 BRANCH="${BRANCH:-main}"
 REQUIRED_APPROVALS="${REQUIRED_APPROVALS:-1}"
 REQUIRE_CODEOWNERS="${REQUIRE_CODEOWNERS:-true}"
 DISMISS_STALE="${DISMISS_STALE:-true}"
-REQUIRE_UP_TO_DATE="${REQUIRE_UP_TO_DATE:-true}"
+REQUIRE_THREAD_RESOLUTION="${REQUIRE_THREAD_RESOLUTION:-true}"
+STRICT_STATUS_CHECKS="${STRICT_STATUS_CHECKS:-false}"
+ADMIN_BYPASS="${ADMIN_BYPASS:-true}"
 APPLY="${APPLY:-false}"
 REQUIRE_DEFAULT_BRANCH="${REQUIRE_DEFAULT_BRANCH:-true}"
 SNAPSHOT_DIR="${SNAPSHOT_DIR:-.ai/bootstrap-snapshots}"
 
-CHECKS_RAW="${REQUIRED_CHECKS:-ci / detect-and-route,secret-scan / gitleaks,semgrep / semgrep}"
+# Universal status-check contexts (bare check-run / job names). A derived repo
+# can extend this with its own lint/test job names via REQUIRED_CHECKS.
+CHECKS_RAW="${REQUIRED_CHECKS:-validate-template,semgrep,gitleaks}"
 IFS=',' read -r -a CHECKS <<< "$CHECKS_RAW"
 
 if ! command -v gh >/dev/null 2>&1; then
@@ -31,14 +64,9 @@ REPO="${OWNER_REPO##*/}"
 DEFAULT_BRANCH="$(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)"
 
 if [[ "$REQUIRE_DEFAULT_BRANCH" == "true" && "$BRANCH" != "$DEFAULT_BRANCH" ]]; then
-  echo "Refusing to modify non-default branch protection."
+  echo "Refusing to target a non-default branch."
   echo "Default branch is '$DEFAULT_BRANCH'. Requested branch is '$BRANCH'."
-  echo "Set REQUIRE_DEFAULT_BRANCH=false only if you intentionally need a different branch."
-  exit 1
-fi
-
-if ! gh api "repos/$OWNER/$REPO/branches/$BRANCH" >/dev/null 2>&1; then
-  echo "Branch '$BRANCH' does not exist in $OWNER_REPO."
+  echo "The ruleset targets ~DEFAULT_BRANCH. Set REQUIRE_DEFAULT_BRANCH=false to override this guard."
   exit 1
 fi
 
@@ -48,60 +76,107 @@ if [[ "$PERM" != "admin" ]]; then
   exit 1
 fi
 
-CHECKS_JSON="$(printf '%s\n' "${CHECKS[@]}" | jq -R . | jq -s .)"
+# Guard: do not require code-owner reviews while CODEOWNERS is unset or still the
+# shipped placeholder — that would make the branch permanently unmergeable.
+if [[ "$REQUIRE_CODEOWNERS" == "true" ]]; then
+  if [[ ! -f .github/CODEOWNERS ]] || grep -q "@your-org/your-team" .github/CODEOWNERS; then
+    echo "Refusing to require code-owner reviews: .github/CODEOWNERS is missing or still"
+    echo "contains the placeholder '@your-org/your-team'."
+    echo "Populate CODEOWNERS with real owners, or re-run with REQUIRE_CODEOWNERS=false."
+    exit 1
+  fi
+fi
 
-PROTECTION_PAYLOAD="$(jq -n \
-  --argjson checks "$CHECKS_JSON" \
+CHECKS_JSON="$(printf '%s\n' "${CHECKS[@]}" | jq -R '{context: .}' | jq -s .)"
+
+if [[ "$ADMIN_BYPASS" == "true" ]]; then
+  # actor_id 5 = the built-in "admin" repository role.
+  BYPASS_JSON='[{"actor_id":5,"actor_type":"RepositoryRole","bypass_mode":"always"}]'
+else
+  BYPASS_JSON='[]'
+fi
+
+RULESET_PAYLOAD="$(jq -n \
+  --arg name "$RULESET_NAME" \
   --argjson approvals "$REQUIRED_APPROVALS" \
   --argjson codeowners "$REQUIRE_CODEOWNERS" \
   --argjson dismiss "$DISMISS_STALE" \
-  --argjson strict "$REQUIRE_UP_TO_DATE" \
+  --argjson thread "$REQUIRE_THREAD_RESOLUTION" \
+  --argjson strict "$STRICT_STATUS_CHECKS" \
+  --argjson checks "$CHECKS_JSON" \
+  --argjson bypass "$BYPASS_JSON" \
   '{
-    required_status_checks: {strict: $strict, contexts: $checks},
-    enforce_admins: true,
-    required_pull_request_reviews: {
-      dismiss_stale_reviews: $dismiss,
-      require_code_owner_reviews: $codeowners,
-      required_approving_review_count: $approvals
-    },
-    restrictions: null,
-    required_linear_history: true,
-    allow_force_pushes: false,
-    allow_deletions: false,
-    block_creations: false,
-    required_conversation_resolution: true,
-    lock_branch: false,
-    allow_fork_syncing: false
+    name: $name,
+    target: "branch",
+    enforcement: "active",
+    bypass_actors: $bypass,
+    conditions: { ref_name: { include: ["~DEFAULT_BRANCH"], exclude: [] } },
+    rules: [
+      {type: "deletion"},
+      {type: "creation"},
+      {type: "update"},
+      {type: "non_fast_forward"},
+      {type: "required_linear_history"},
+      {type: "pull_request", parameters: {
+        required_approving_review_count: $approvals,
+        dismiss_stale_reviews_on_push: $dismiss,
+        require_code_owner_review: $codeowners,
+        require_last_push_approval: false,
+        required_review_thread_resolution: $thread,
+        allowed_merge_methods: ["squash", "rebase"]
+      }},
+      {type: "required_status_checks", parameters: {
+        strict_required_status_checks_policy: $strict,
+        do_not_enforce_on_create: false,
+        required_status_checks: $checks
+      }}
+    ]
   }')"
 
-echo "Repository: $OWNER_REPO"
-echo "Branch: $BRANCH"
-echo "Default branch: $DEFAULT_BRANCH"
-echo "Apply mode: $APPLY"
+EXISTING_ID="$(gh api "repos/$OWNER/$REPO/rulesets" --jq ".[] | select(.name==\"$RULESET_NAME\") | .id" 2>/dev/null | head -n1 || true)"
+
+echo "Repository:      $OWNER_REPO"
+echo "Default branch:  $DEFAULT_BRANCH"
+if [[ -n "$EXISTING_ID" ]]; then
+  echo "Ruleset:         $RULESET_NAME (update id=$EXISTING_ID)"
+else
+  echo "Ruleset:         $RULESET_NAME (create)"
+fi
 echo "Required checks: $CHECKS_RAW"
+echo "Approvals:       $REQUIRED_APPROVALS  Code-owner review: $REQUIRE_CODEOWNERS  Admin bypass: $ADMIN_BYPASS"
+echo "Apply mode:      $APPLY"
 
 if [[ "$APPLY" != "true" ]]; then
-  echo "Dry run only. Set APPLY=true to mutate settings."
+  echo ""
+  echo "Dry run only. Set APPLY=true to mutate settings. Payload preview:"
+  echo "$RULESET_PAYLOAD" | jq .
   exit 0
 fi
 
 mkdir -p "$SNAPSHOT_DIR"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
-PROTECTION_SNAPSHOT="$SNAPSHOT_DIR/${REPO}-${BRANCH}-protection-${STAMP}.json"
+RULESET_SNAPSHOT="$SNAPSHOT_DIR/${REPO}-ruleset-${STAMP}.json"
 REPO_SETTINGS_SNAPSHOT="$SNAPSHOT_DIR/${REPO}-repo-settings-${STAMP}.json"
 
-if ! gh api "repos/$OWNER/$REPO/branches/$BRANCH/protection" > "$PROTECTION_SNAPSHOT" 2>/dev/null; then
-  # Branch may not have protection yet; keep a valid placeholder snapshot.
-  echo '{}' > "$PROTECTION_SNAPSHOT"
-fi
 gh api "repos/$OWNER/$REPO" > "$REPO_SETTINGS_SNAPSHOT"
 
-gh api \
-  --method PUT \
-  -H "Accept: application/vnd.github+json" \
-  "repos/$OWNER/$REPO/branches/$BRANCH/protection" \
-  --input - <<< "$PROTECTION_PAYLOAD"
+if [[ -n "$EXISTING_ID" ]]; then
+  gh api "repos/$OWNER/$REPO/rulesets/$EXISTING_ID" > "$RULESET_SNAPSHOT" 2>/dev/null || echo '{}' > "$RULESET_SNAPSHOT"
+  gh api --method PUT \
+    -H "Accept: application/vnd.github+json" \
+    "repos/$OWNER/$REPO/rulesets/$EXISTING_ID" \
+    --input - <<< "$RULESET_PAYLOAD" >/dev/null
+  echo "Updated ruleset id=$EXISTING_ID."
+else
+  echo '{}' > "$RULESET_SNAPSHOT"
+  NEW_ID="$(gh api --method POST \
+    -H "Accept: application/vnd.github+json" \
+    "repos/$OWNER/$REPO/rulesets" \
+    --input - <<< "$RULESET_PAYLOAD" --jq .id)"
+  echo "Created ruleset id=$NEW_ID."
+fi
 
+# Repo-level merge hygiene (not covered by rulesets): squash/rebase only, auto-delete branches.
 gh api \
   --method PATCH \
   -H "Accept: application/vnd.github+json" \
@@ -114,7 +189,13 @@ gh api \
 mkdir -p .ai && touch .ai/bootstrap-completed
 echo "Bootstrap applied successfully."
 echo "Snapshots saved:"
-echo "  Branch protection: $PROTECTION_SNAPSHOT"
-echo "  Repo settings:     $REPO_SETTINGS_SNAPSHOT"
-echo "Rollback hint (branch protection):"
-echo "  gh api --method PUT -H 'Accept: application/vnd.github+json' repos/$OWNER/$REPO/branches/$BRANCH/protection --input $PROTECTION_SNAPSHOT"
+echo "  Ruleset (prior): $RULESET_SNAPSHOT"
+echo "  Repo settings:   $REPO_SETTINGS_SNAPSHOT"
+if [[ -n "$EXISTING_ID" ]]; then
+  echo "Rollback hint: restore the prior ruleset from the snapshot, e.g."
+  echo "  gh api --method PUT repos/$OWNER/$REPO/rulesets/$EXISTING_ID --input $RULESET_SNAPSHOT"
+  echo "  (trim id/created_at/_links fields the API rejects on write)"
+else
+  echo "Rollback hint: delete the newly created ruleset, e.g."
+  echo "  gh api --method DELETE repos/$OWNER/$REPO/rulesets/<id-printed-above>"
+fi

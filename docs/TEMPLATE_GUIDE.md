@@ -115,9 +115,20 @@ After the devcontainer starts, these steps require human input and cannot be aut
 
 Run `bash scripts/check-day0.sh` at any time to see which steps are still pending.
 
+`bootstrap-github-settings.sh` configures a repository **ruleset**
+(`Main_Branch_Protections`, targeting the default branch), not legacy branch
+protection. It is idempotent — creates the ruleset if absent, updates it in place
+otherwise. The ruleset requires a pull request with approving review(s), passing
+status checks (`validate-template`, `semgrep`, `gitleaks`), linear history, and
+blocks force-pushes / deletions / direct pushes to the branch.
+
 Bootstrap safety defaults:
-- only default branch is mutable unless `REQUIRE_DEFAULT_BRANCH=false`
-- script fails if target branch does not exist
+- dry-run unless `APPLY=true` (prints the exact ruleset payload)
+- only the default branch is targeted unless `REQUIRE_DEFAULT_BRANCH=false`
+- refuses to require code-owner reviews while `.github/CODEOWNERS` is unset or still
+  the shipped placeholder owner (override with `REQUIRE_CODEOWNERS=false`)
+- repo admins may bypass by default; set `ADMIN_BYPASS=false` for a multi-maintainer
+  repo that wants no bypass
 - pre-change snapshots are saved under `.ai/bootstrap-snapshots` for rollback
 
 ## Security Model
@@ -126,7 +137,7 @@ Bootstrap safety defaults:
 - Host access limited to local model endpoint on TCP 11434.
 - Secrets blocked locally by pre-commit and in CI by gitleaks workflow.
 - Semgrep policy checks in local and CI workflows with SARIF upload to GitHub Security tab.
-- Branch protection and required checks configured by bootstrap script.
+- Default-branch ruleset (required PR reviews + required status checks, no force-push/deletion) configured by the bootstrap script.
 
 See [SECURITY.md](../SECURITY.md) for leak response guidance.
 
