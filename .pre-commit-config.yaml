@@ -13,8 +13,17 @@ repos:
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.24.2
     hooks:
-      - id: gitleaks
-        args: ["--config=.gitleaks.toml", "--redact", "--verbose"]
+      # gitleaks-system runs the sha256-pinned binary baked into the devcontainer
+      # image (see GITLEAKS_VERSION in .devcontainer/Dockerfile — keep it in sync
+      # with this rev). The default `gitleaks` hook is language: golang, which
+      # builds from source and would need firewall egress to the Go toolchain
+      # and module proxy. Entry already passes --redact --staged --verbose.
+      # pass_filenames: false is set on the upstream golang hook but missing
+      # from the system variant — without it pre-commit appends filenames as
+      # positional args and gitleaks aborts ("accepts at most 1 arg(s)").
+      - id: gitleaks-system
+        args: ["--config=.gitleaks.toml"]
+        pass_filenames: false
 
   - repo: https://github.com/returntocorp/semgrep
     rev: v1.83.0

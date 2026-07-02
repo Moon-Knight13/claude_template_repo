@@ -74,6 +74,24 @@ RUN ARCH=$(dpkg --print-architecture) && \
   dpkg -i git-delta.deb && \
   rm git-delta.deb
 
+# Download and SHA256-verify gitleaks. Baked into the image so the pre-commit
+# hook can run it as `language: system` — building it from source would require
+# opening the firewall to the Go toolchain and module proxy (go.dev,
+# dl.google.com, proxy.golang.org, sum.golang.org).
+ARG GITLEAKS_VERSION=8.24.2
+ARG GITLEAKS_SHA256_AMD64=fa0500f6b7e41d28791ebc680f5dd9899cd42b58629218a5f041efa899151a8e
+ARG GITLEAKS_SHA256_ARM64=574a6d52573c61173add7ddb5e3cc68c0e82cb0735818a1eeb9a0a2de1643fbc
+RUN ARCH=$(dpkg --print-architecture) && \
+  case "$ARCH" in \
+    amd64) GL_ARCH="x64"; EXPECTED_SHA256="$GITLEAKS_SHA256_AMD64" ;; \
+    arm64) GL_ARCH="arm64"; EXPECTED_SHA256="$GITLEAKS_SHA256_ARM64" ;; \
+    *) echo "ERROR: Unsupported architecture: $ARCH" && exit 1 ;; \
+  esac && \
+  wget "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_${GL_ARCH}.tar.gz" -O gitleaks.tar.gz && \
+  echo "${EXPECTED_SHA256}  gitleaks.tar.gz" | sha256sum -c - && \
+  tar -xzf gitleaks.tar.gz -C /usr/local/bin gitleaks && \
+  rm gitleaks.tar.gz
+
 # Set up non-root user
 USER node
 
