@@ -42,6 +42,58 @@ else
   echo "$CAVEMAN_VERSION" > "$MARKER_FILE"
 fi
 
+# Point the user-level statusLine at the plugin's statusline script. The script
+# lives under a hash-versioned plugin cache path that changes on every plugin
+# update, so this must be (re)resolved at container start rather than hardcoded
+# in template settings. Runs on every start — the marker above only skips the
+# download.
+configure_statusline() {
+  local settings="$MARKER_DIR/settings.json"
+  local script="" candidate
+
+  for candidate in "$MARKER_DIR"/plugins/cache/caveman/caveman/*/src/hooks/caveman-statusline.sh; do
+    if [[ -f "$candidate" ]] && { [[ -z "$script" ]] || [[ "$candidate" -nt "$script" ]]; }; then
+      script="$candidate"
+    fi
+  done
+
+  if [[ -z "$script" ]]; then
+    echo "WARN: caveman statusline script not found under plugin cache; skipping statusline setup."
+    return 0
+  fi
+  if ! command -v jq >/dev/null 2>&1; then
+    echo "WARN: jq not available; skipping statusline setup."
+    return 0
+  fi
+
+  if [[ ! -f "$settings" ]]; then
+    echo '{}' > "$settings"
+  elif ! jq -e . "$settings" >/dev/null 2>&1; then
+    echo "WARN: $settings is not valid JSON; refusing to touch it. Fix it, then rerun."
+    return 0
+  fi
+
+  local current
+  current="$(jq -r '.statusLine.command // ""' "$settings")"
+  if [[ "$current" == *"caveman-statusline.sh"* && "$current" == *"$script"* ]]; then
+    echo "Caveman statusline already configured."
+    return 0
+  fi
+  if [[ -n "$current" && "$current" != *"caveman-statusline.sh"* ]]; then
+    echo "Custom statusLine already set in $settings; leaving it alone."
+    return 0
+  fi
+
+  local tmp
+  tmp="$(mktemp)"
+  jq --arg cmd "bash \"$script\"" \
+    '.statusLine = {type: "command", command: $cmd}' "$settings" > "$tmp"
+  mv "$tmp" "$settings"
+  echo "Caveman statusline configured: $script"
+}
+
+configure_statusline
+
 # Mode activation is session-based; this file documents intended default mode.
 echo "$CAVEMAN_MODE" > "$MARKER_DIR/.caveman-default-mode"
 echo "Caveman install complete. Default mode: $CAVEMAN_MODE"

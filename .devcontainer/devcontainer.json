@@ -60,8 +60,7 @@
     "CAVEMAN_INSTALL_SHA256": "8ddef49c15f089c26affed3c31d97142c683e1d37a1499ae557281ca09c2712c",
     "CAVEMAN_MODE": "lite",
     "BMAD_ENABLED": "1",
-    "GITHUB_TOKEN": "${localEnv:GITHUB_TOKEN}",
-    "SEMGREP_APP_TOKEN": "${localEnv:SEMGREP_APP_TOKEN}"
+    "GITHUB_TOKEN": "${localEnv:GITHUB_TOKEN}"
   },
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
   "workspaceFolder": "/workspace",

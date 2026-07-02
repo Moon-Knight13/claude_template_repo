@@ -9,11 +9,15 @@ Validate that all required day-0 setup steps are complete and guide through any 
    bash scripts/check-day0.sh
    ```
 
-2. Parse the output and present results clearly:
+2. If the script reports "This is the template repo itself — day-0 checks are not applicable",
+   stop and report that: the checks validate repos *derived* from the template. Mention that
+   `DAY0_FORCE_FULL=1 bash scripts/check-day0.sh` runs the full checklist anyway.
+
+3. Parse the output and present results clearly:
    - Show each `OK` step as complete ✓
    - Show each `FAIL` step with its reason and the exact fix command
 
-3. For each failing step, provide guided remediation:
+4. For each failing step, provide guided remediation:
 
    **CODEOWNERS not customized:**
    - Explain: "Branch protection requires real GitHub owners — the placeholder blocks all PRs until updated"
@@ -35,6 +39,6 @@ Validate that all required day-0 setup steps are complete and guide through any 
    - Explain: "Optional — only needed if LOCAL_MODEL_ENABLED=true. Install from https://ollama.com, then `ollama pull qwen2.5-coder:7b`"
    - If they don't want local models: `LOCAL_MODEL_ENABLED=false` in `.env`
 
-4. After the user reports completing a fix, re-run `bash scripts/check-day0.sh` to confirm.
+5. After the user reports completing a fix, re-run `bash scripts/check-day0.sh` to confirm.
 
-5. When all steps pass: "All day-0 steps complete. Your template repo is fully configured."
+6. When all steps pass: "All day-0 steps complete. Your template repo is fully configured."

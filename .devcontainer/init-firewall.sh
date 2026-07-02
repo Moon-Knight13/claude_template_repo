@@ -92,12 +92,16 @@ done < <(echo "$gh_ranges" | jq -r '(.web + .api + .git)[]' | sort -u)
 # meta web/api/git ranges above (codeload uses separate IPs; githubusercontent is
 # Fastly-hosted), but the provisioning installers fetch tarballs/scripts from
 # them, so allow their current A records explicitly.
+# pypi.org / files.pythonhosted.org are likewise Fastly-hosted (rotating IPs);
+# pre-commit needs them to pip-install its hook environments on first run.
 for domain in \
     "registry.npmjs.org" \
     "api.anthropic.com" \
     "codeload.github.com" \
     "raw.githubusercontent.com" \
     "objects.githubusercontent.com" \
+    "pypi.org" \
+    "files.pythonhosted.org" \
     "marketplace.visualstudio.com" \
     "vscode.blob.core.windows.net" \
     "update.code.visualstudio.com"; do

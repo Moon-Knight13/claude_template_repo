@@ -9,5 +9,6 @@
       }
     }
   },
-  "_pii_shield_note": "PII-Shield (gregmos/PII-Shield) anonymizes content before it reaches Claude. Install manually: Settings > Extensions > drag in the .mcpb file. See docs/TEMPLATE_GUIDE.md#pii--privacy-controls for details."
+  "_pii_shield_note": "PII-Shield (gregmos/PII-Shield) anonymizes content before it reaches Claude. Install manually: Settings > Extensions > drag in the .mcpb file. See docs/TEMPLATE_GUIDE.md#pii--privacy-controls for details.",
+  "_statusline_note": "The caveman statusline badge is auto-configured by scripts/install-caveman.sh at container start into user-level settings (~/.claude/settings.json), because the plugin script lives at a hash-versioned cache path. Do not hardcode a statusLine here."
 }

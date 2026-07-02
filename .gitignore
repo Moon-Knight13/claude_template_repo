@@ -19,6 +19,12 @@ secrets.*
 .claude/statsig/
 .ai/
 
+# BMAD generated output (installed at container start by scripts/install-bmad.sh;
+# regenerated per-machine — never commit)
+_bmad/
+_bmad-output/
+.claude/skills/bmad-*
+
 # Python
 __pycache__/
 .pytest_cache/

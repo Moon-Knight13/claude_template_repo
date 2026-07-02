@@ -88,7 +88,7 @@ This template verifies the pinned Caveman installer script checksum before execu
    - Caveman token compression install
    - BMAD workflow install
    - pre-commit hooks install
-   - Claude Code official plugins install (skill-creator, frontend-design, code-review, superpowers, github, commit-commands, semgrep)
+   - Claude Code official plugins install (skill-creator, frontend-design, code-review, superpowers, github, commit-commands)
 
 Note: startup is intentionally deterministic; pre-commit hook versions are not auto-updated unless `PRECOMMIT_AUTOUPDATE=1` is set.
 
@@ -246,7 +246,11 @@ with `/run-epic`. Full playbook (solo + team) in
 | `superpowers` | `claude-plugins-official` | Enhanced capabilities and full-context mode |
 | `github` | `claude-plugins-official` | GitHub operations (PRs, issues, code search) — requires GITHUB_TOKEN |
 | `commit-commands` | `claude-plugins-official` | Git commit workflow assistance |
-| `semgrep` | `claude-plugins-official` | Security scanning integrated into Claude Code session |
+
+Semgrep scanning runs CI-side with the free OSS engine and the repo's `.semgrep.yml`
+rules (see `.github/workflows/semgrep.yml`) — no Semgrep Guardian plugin, login, or
+`SEMGREP_APP_TOKEN` is needed. The Guardian plugin is intentionally not installed:
+its PreToolUse hook blocks tool calls in sessions without a paid Semgrep login.
 
 Plugins are installed by `scripts/install-claude-plugins.sh` at container startup. They persist in the Claude Code config volume across rebuilds. Re-run `bash scripts/install-claude-plugins.sh` manually if a plugin is missing.
 

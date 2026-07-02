@@ -12,7 +12,6 @@ plugins=(
   superpowers@claude-plugins-official
   github@claude-plugins-official
   commit-commands@claude-plugins-official
-  semgrep@claude-plugins-official
 )
 
 # Register the official Anthropic marketplace before installing. `marketplace add`

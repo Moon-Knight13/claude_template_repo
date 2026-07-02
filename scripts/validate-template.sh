@@ -145,7 +145,8 @@ while IFS= read -r -d '' f; do
     fi
 done < <(find . -type f \( -name "*.md" -o -name "*.json" \) \
     ! -path "./.git/*" ! -path "./node_modules/*" \
-    ! -path "./scripts/*" ! -path "./.github/workflows/*" ! -path "./.claude/commands/*" -print0)
+    ! -path "./scripts/*" ! -path "./.github/workflows/*" ! -path "./.claude/commands/*" \
+    ! -path "./_bmad/*" ! -path "./_bmad-output/*" ! -path "./.claude/skills/*" -print0)
 if [[ "$_placeholder_clean" == "true" ]]; then
     check "No unexpected placeholders in tracked files" "pass"
 fi

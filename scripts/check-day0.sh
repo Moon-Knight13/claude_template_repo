@@ -25,6 +25,34 @@ check() {
 echo "Day-0 Setup Validation"
 echo "======================"
 
+# Day-0 checks target repos *derived* from this template; the pristine template
+# itself fails them by design (placeholder CODEOWNERS, no .env, no markers).
+# Detect the template repo and skip early. DAY0_FORCE_FULL=1 overrides.
+is_template_repo() {
+    [[ "${DAY0_FORCE_FULL:-0}" == "1" ]] && return 1
+
+    # Preferred: ask GitHub — authoritative when reachable.
+    local is_template
+    is_template=$(gh repo view --json isTemplate --jq '.isTemplate' 2>/dev/null || echo "")
+    [[ "$is_template" == "true" ]] && return 0
+    [[ "$is_template" == "false" ]] && return 1
+
+    # Offline fallback: require BOTH the placeholder CODEOWNERS and the
+    # template's own origin URL, so derived repos always get the full check.
+    if [[ -f ".github/CODEOWNERS" ]] && grep -q "@your-org/your-team" .github/CODEOWNERS \
+        && git remote get-url origin 2>/dev/null | grep -q "Moon-Knight13/claude_template_repo"; then
+        return 0
+    fi
+    return 1
+}
+
+if is_template_repo; then
+    echo "  --  This is the template repo itself — day-0 checks are not applicable."
+    echo "      They validate repos derived from the template."
+    echo "      To run the full checklist anyway: DAY0_FORCE_FULL=1 bash scripts/check-day0.sh"
+    exit 0
+fi
+
 # 1. CODEOWNERS populated with real owner
 if [[ -f ".github/CODEOWNERS" ]] && ! grep -q "@your-org/your-team" .github/CODEOWNERS; then
     check "CODEOWNERS customized with real owners" "pass" ""
@@ -57,10 +85,10 @@ else
         "Run: APPLY=false bash scripts/bootstrap-github-settings.sh (dry-run), then: APPLY=true bash scripts/bootstrap-github-settings.sh"
 fi
 
-# 5. Claude plugins installed (all 7 required plugins)
+# 5. Claude plugins installed (all 6 required plugins)
 _installed_plugins=$(claude plugin list 2>/dev/null || echo "")
 _all_plugins_ok=true
-for _p in skill-creator frontend-design code-review superpowers github commit-commands semgrep; do
+for _p in skill-creator frontend-design code-review superpowers github commit-commands; do
     if ! echo "$_installed_plugins" | grep -q "${_p}"; then
         _all_plugins_ok=false
         break
