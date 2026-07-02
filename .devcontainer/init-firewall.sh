@@ -152,8 +152,23 @@ if [ -z "$HOST_GATEWAY" ]; then
 fi
 echo "Host gateway detected as: $HOST_GATEWAY"
 
-# Allow outbound access to host local model endpoint only
+# Allow outbound access to host local model endpoint only.
+# The host is reached differently per runtime: docker bridge exposes it as the
+# default gateway, while podman/pasta maps it to a dedicated address behind
+# host.docker.internal / host.containers.internal (the mirrored default route
+# points at the LAN router there, not the host). Allow every candidate.
 iptables -A OUTPUT -d "$HOST_GATEWAY" -p tcp --dport 11434 -j ACCEPT
+for host_name in host.docker.internal host.containers.internal; do
+    host_ip=$(getent hosts "$host_name" | awk '{print $1; exit}' || true)
+    if [[ -n "$host_ip" && "$host_ip" != "$HOST_GATEWAY" ]]; then
+        if [[ ! "$host_ip" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+            echo "WARNING: Skipping non-IPv4 address for $host_name: $host_ip"
+            continue
+        fi
+        iptables -A OUTPUT -d "$host_ip" -p tcp --dport 11434 -j ACCEPT
+        echo "Local model egress allowed to $host_name ($host_ip)"
+    fi
+done
 
 # Set default policies to DROP first
 iptables -P INPUT DROP
@@ -189,9 +204,16 @@ fi
 
 # Verify local host model endpoint if enabled
 if [ "${LOCAL_MODEL_ENABLED:-true}" = "true" ]; then
-    if curl --connect-timeout 2 "http://${HOST_GATEWAY}:11434" >/dev/null 2>&1; then
-        echo "Local model endpoint reachable at http://${HOST_GATEWAY}:11434"
+    model_reachable=""
+    for candidate in "host.docker.internal" "$HOST_GATEWAY"; do
+        if curl --connect-timeout 2 --max-time 4 "http://${candidate}:11434" >/dev/null 2>&1; then
+            model_reachable="$candidate"
+            break
+        fi
+    done
+    if [ -n "$model_reachable" ]; then
+        echo "Local model endpoint reachable at http://${model_reachable}:11434"
     else
-        echo "WARNING: Local model endpoint is not reachable at http://${HOST_GATEWAY}:11434"
+        echo "WARNING: Local model endpoint is not reachable via host.docker.internal or ${HOST_GATEWAY} on port 11434"
     fi
 fi

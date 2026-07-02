@@ -22,7 +22,9 @@ is **always a Claude task and must never be routed to the local model**. Do not 
 
 2. **Check it isn't already covered** — do not re-add hosts the script already allows:
    - GitHub `web` + `api` + `git` IP ranges are pulled dynamically from `api.github.com/meta`.
-   - The local model endpoint is the host gateway on tcp/11434.
+   - The local model endpoint is already open on tcp/11434 to the host gateway **and** to the
+     resolved `host.docker.internal` / `host.containers.internal` addresses (docker bridge vs
+     podman/pasta reach the host differently).
    - DNS (udp/53) and localhost are already open.
 
 3. **Pick the right list in `.devcontainer/init-firewall.sh`:**
