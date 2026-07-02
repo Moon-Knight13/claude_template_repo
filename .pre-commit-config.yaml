@@ -11,7 +11,7 @@ repos:
       - id: mixed-line-ending
 
   - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.24.2
+    rev: v8.30.1
     hooks:
       # gitleaks-system runs the sha256-pinned binary baked into the devcontainer
       # image (see GITLEAKS_VERSION in .devcontainer/Dockerfile — keep it in sync

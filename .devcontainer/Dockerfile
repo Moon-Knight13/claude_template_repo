@@ -1,3 +1,14 @@
+# Build gitleaks from source on a patched Go toolchain. Upstream release
+# binaries are currently compiled with go1.24.11, whose stdlib carries
+# CVE-2025-68121 (crypto/tls, CRITICAL — fixed in 1.24.13/1.25.7/1.26.0-rc.3),
+# so they trip the Trivy container-scan gate. `go install` verifies the module
+# against the Go checksum database (sum.golang.org), which replaces the
+# release-tarball sha256 pin. Revisit pinning a release binary again once
+# upstream ships one built on a fixed Go.
+FROM golang:1.26.4 AS gitleaks-build
+ARG GITLEAKS_VERSION=8.30.1
+RUN CGO_ENABLED=0 go install "github.com/zricethezav/gitleaks/v8@v${GITLEAKS_VERSION}"
+
 FROM node:24@sha256:fdddfb3e688158251943d52eba361de991548f6814007acba4917ae6b512d6be
 
 ARG TZ
@@ -90,23 +101,12 @@ RUN ARCH=$(dpkg --print-architecture) && \
   tar -xzf gh.tar.gz --strip-components=2 -C /usr/local/bin "gh_${GH_VERSION}_linux_${ARCH}/bin/gh" && \
   rm gh.tar.gz
 
-# Download and SHA256-verify gitleaks. Baked into the image so the pre-commit
-# hook can run it as `language: system` — building it from source would require
-# opening the firewall to the Go toolchain and module proxy (go.dev,
-# dl.google.com, proxy.golang.org, sum.golang.org).
-ARG GITLEAKS_VERSION=8.24.2
-ARG GITLEAKS_SHA256_AMD64=fa0500f6b7e41d28791ebc680f5dd9899cd42b58629218a5f041efa899151a8e
-ARG GITLEAKS_SHA256_ARM64=574a6d52573c61173add7ddb5e3cc68c0e82cb0735818a1eeb9a0a2de1643fbc
-RUN ARCH=$(dpkg --print-architecture) && \
-  case "$ARCH" in \
-    amd64) GL_ARCH="x64"; EXPECTED_SHA256="$GITLEAKS_SHA256_AMD64" ;; \
-    arm64) GL_ARCH="arm64"; EXPECTED_SHA256="$GITLEAKS_SHA256_ARM64" ;; \
-    *) echo "ERROR: Unsupported architecture: $ARCH" && exit 1 ;; \
-  esac && \
-  wget "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_${GL_ARCH}.tar.gz" -O gitleaks.tar.gz && \
-  echo "${EXPECTED_SHA256}  gitleaks.tar.gz" | sha256sum -c - && \
-  tar -xzf gitleaks.tar.gz -C /usr/local/bin gitleaks && \
-  rm gitleaks.tar.gz
+# gitleaks: built from source in the gitleaks-build stage above (see the
+# comment there for why a release binary isn't used). Baked into the image so
+# the pre-commit hook can run it as `language: system` — the runtime firewall
+# blocks the Go toolchain downloads the default golang hook would need. Keep
+# GITLEAKS_VERSION in sync with the gitleaks rev in .pre-commit-config.yaml.
+COPY --from=gitleaks-build /go/bin/gitleaks /usr/local/bin/gitleaks
 
 # Set up non-root user
 USER node
