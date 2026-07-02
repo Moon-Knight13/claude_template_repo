@@ -21,7 +21,6 @@ RUN apt-get update && apt-get -y upgrade && apt-get install -y --no-install-reco
   man-db \
   unzip \
   gnupg2 \
-  gh \
   iptables \
   ipset \
   iproute2 \
@@ -73,6 +72,23 @@ RUN ARCH=$(dpkg --print-architecture) && \
   echo "${EXPECTED_SHA256}  git-delta.deb" | sha256sum -c - && \
   dpkg -i git-delta.deb && \
   rm git-delta.deb
+
+# Download and SHA256-verify gh. Debian bookworm's apt package is 2.23.0
+# (2023), which predates `gh project` (needs >= 2.31) — the Kanban board
+# scripts (bootstrap-project.sh, board.sh) hard-require it.
+ARG GH_VERSION=2.95.0
+ARG GH_SHA256_AMD64=25d1e4729e8808c9ed3d613e96ebd3f3e44446f2d368c89d878a71a36ddb3d8c
+ARG GH_SHA256_ARM64=d41e0b3b6218e5741c8bb4db39b16e53a59e0e06299a8489bd38f623ef7ebaae
+RUN ARCH=$(dpkg --print-architecture) && \
+  case "$ARCH" in \
+    amd64) EXPECTED_SHA256="$GH_SHA256_AMD64" ;; \
+    arm64) EXPECTED_SHA256="$GH_SHA256_ARM64" ;; \
+    *) echo "ERROR: Unsupported architecture: $ARCH" && exit 1 ;; \
+  esac && \
+  wget "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${ARCH}.tar.gz" -O gh.tar.gz && \
+  echo "${EXPECTED_SHA256}  gh.tar.gz" | sha256sum -c - && \
+  tar -xzf gh.tar.gz --strip-components=2 -C /usr/local/bin "gh_${GH_VERSION}_linux_${ARCH}/bin/gh" && \
+  rm gh.tar.gz
 
 # Download and SHA256-verify gitleaks. Baked into the image so the pre-commit
 # hook can run it as `language: system` — building it from source would require
