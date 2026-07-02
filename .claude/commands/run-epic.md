@@ -29,7 +29,11 @@ manages subagents" flow.
      back the claimed list and work them one at a time via `/next-issue`.
 
 4. Respect Route per story: `Route=Human` stories are surfaced to the user rather
-   than auto-run; `Route=Local` subagents should use `scripts/ask-local.sh`.
+   than auto-run; `Route=Local` stories are run via the `local-worker` agent
+   (subagent type `local-worker`), which delegates through
+   `scripts/delegate-local.sh` and reports `VERDICT: OK` or `VERDICT: ESCALATE`.
+   On ESCALATE, re-run that story with a normal Claude subagent — the escalation
+   reason is already logged to `.ai/route-log.jsonl`; don't retry locally.
 
 5. As stories reach In Review, keep the epic's checklist updated. When all
    children are Done, move the epic: `bash scripts/board.sh move <epic#> done`

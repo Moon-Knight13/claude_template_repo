@@ -29,12 +29,13 @@ Use Claude for high-risk or ambiguous tasks:
 Before starting a task, determine the routing:
 
 1. Classify: `task_type` (format|docs|tiny-refactor|rename|simple-test|architecture|security|deep-debug|cross-cutting), `risk_level` (low|medium|high), `changed_file_count`.
-2. Run: `result=$(bash scripts/route-model.sh "<task_type>" "<risk_level>" "<changed_file_count>")`
-3. Extract provider: `provider=$(echo "$result" | cut -d: -f1)`
-4. If `provider=local`: complete the task by calling `bash scripts/ask-local.sh "<prompt>"` via the Bash tool and return the result.
-5. If `provider=claude` or local endpoint unreachable (`local_unreachable_fallback`): proceed in this session normally.
+2. Delegate via the lifecycle wrapper (runs `route-model.sh`, then health preflight → context-fit → bounded generation → output sanity):
+   `bash scripts/delegate-local.sh "<task_type>" "<risk_level>" "<changed_file_count>" "<prompt>"` (or `-` with the prompt on stdin).
+3. Exit 0: stdout is the local model's result — validate before applying.
+4. Exit 3: stderr has `escalate:<reason>` — proceed in this session (Claude) normally. Never retry `route:*` escalations locally.
+5. When orchestrating subagents, run `Route=Local` subtasks through the `local-worker` agent (`.claude/agents/local-worker.md`); on `VERDICT: ESCALATE` redo the subtask with a Claude subagent.
 
-Routing decisions are logged to `.ai/route-log.jsonl` for analysis.
+Routing decisions and delegation outcomes (success/escalate, reason, duration, tokens/sec) are logged to `.ai/route-log.jsonl`. Local model health is cached in `.ai/local-health.json` (`scripts/local-health.sh`, TTL `LOCAL_HEALTH_TTL`).
 
 ## Hard Escalation Triggers
 Escalate to Claude if any condition is true:

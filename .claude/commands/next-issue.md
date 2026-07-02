@@ -24,7 +24,8 @@ implement it, and open a PR. This is how an agent session "picks up an issue."
    the board **Route**:
    - `Route=Human` should not reach you via `next`; if the user forced such an
      issue, confirm they want an agent to proceed.
-   - `Route=Local` — prefer routing generation through `scripts/ask-local.sh`
+   - `Route=Local` — route generation through `scripts/delegate-local.sh`
+     (exit 3 = escalate: do the work in this session and note the reason)
      per the model-routing protocol in CLAUDE.md.
    - `Route=Claude` — proceed in this session.
 

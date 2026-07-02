@@ -66,7 +66,7 @@ else
 fi
 
 if [[ "$choose_local" == "true" ]]; then
-  if curl --silent --fail --connect-timeout 2 "$LOCAL_MODEL_ENDPOINT" >/dev/null 2>&1; then
+  if curl --silent --fail --connect-timeout 2 --max-time 4 "$LOCAL_MODEL_ENDPOINT" >/dev/null 2>&1; then
     provider="local"
     if [[ "$prefer_fast_local" == "true" ]]; then
       model="$LOCAL_MODEL_FAST_MODEL"
