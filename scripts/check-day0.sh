@@ -101,12 +101,20 @@ else
         "Run: bash scripts/install-claude-plugins.sh  (or restart the devcontainer to re-run postStartCommand)"
 fi
 
-# 6. GitHub token set (required for github plugin)
-if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-    check "GITHUB_TOKEN is set" "pass" ""
+# 6. gh authenticated via browser OAuth (no tokens in env vars or repo files —
+# gh keeps the OAuth token in its own config volume and acts as git's
+# credential helper)
+if gh auth status >/dev/null 2>&1; then
+    check "gh CLI authenticated (browser OAuth)" "pass" ""
 else
-    check "GITHUB_TOKEN is set" "fail" \
-        "Set GITHUB_TOKEN in your .env file or host shell profile. Create at: https://github.com/settings/tokens"
+    check "gh CLI authenticated (browser OAuth)" "fail" \
+        "Run in your terminal: gh auth login --hostname github.com --git-protocol https --web  — then: gh auth setup-git"
+fi
+if [[ -n "${GITHUB_TOKEN:-}${GH_TOKEN:-}" ]]; then
+    check "No GitHub token in environment" "fail" \
+        "Unset GITHUB_TOKEN/GH_TOKEN — this template uses gh browser OAuth so tokens never sit in env vars where any process can read them."
+else
+    check "No GitHub token in environment" "pass" ""
 fi
 
 # 7. GitHub Projects scope granted (needed to create/manage the Kanban board)

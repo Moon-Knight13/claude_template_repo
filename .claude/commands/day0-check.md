@@ -25,7 +25,17 @@ Validate that all required day-0 setup steps are complete and guide through any 
 
    **.env file missing:**
    - Action: `cp .env.example .env`
-   - Remind: "Review the values — especially GITHUB_TOKEN if you want the GitHub plugin to work"
+   - Remind: "Review the values. Do not add GitHub tokens — auth is via `gh auth login --web`"
+
+   **gh CLI not authenticated:**
+   - Explain: "GitHub auth uses browser OAuth so no token is stored in env vars or repo files"
+   - Action: user runs `gh auth login --hostname github.com --git-protocol https --web` in their terminal
+     (interactive — Claude cannot run it; in a Claude Code session type `! gh auth login --web`),
+     then `gh auth setup-git` so git push/pull uses gh as credential helper
+
+   **GitHub token found in environment:**
+   - Explain: "Env tokens are readable by every process in the container, including agents — this template's policy is browser OAuth only"
+   - Action: remove GITHUB_TOKEN/GH_TOKEN from `.env`, host shell profile, or devcontainer config, then rebuild/restart
 
    **.claude/settings.json missing:**
    - Action: `cp .claude/settings.json.example .claude/settings.json`

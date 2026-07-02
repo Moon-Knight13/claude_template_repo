@@ -68,6 +68,23 @@ Before first coding session inside devcontainer:
 3. Complete auth flow.
 4. Verify with `claude --version` and a simple Claude command.
 
+### GitHub Credential Prerequisite
+
+GitHub auth follows the same pattern: interactive browser OAuth, credentials in a
+named volume outside the workspace, never in env vars or repo files. Env-var tokens
+(`GITHUB_TOKEN`/`GH_TOKEN`) are deliberately not passed into the container — any
+process in the container (including agents) could read them, and they tend to leak
+into logs and shell history. `scripts/check-day0.sh` fails if one is set.
+
+1. Open terminal in container.
+2. Run `gh auth login --hostname github.com --git-protocol https --web` and complete
+   the browser flow (in a Claude Code session, type `! gh auth login --web`).
+3. Run `gh auth setup-git` so git push/pull over https uses gh as credential helper.
+4. Verify with `gh auth status`.
+
+The token lives in `~/.config/gh` (the `claude-code-ghconfig` volume) and persists
+across container rebuilds.
+
 The mounted path is `/home/node/.claude` and is intentionally outside repository files to prevent accidental credential commits.
 
 ### Caveman Installer Verification Prerequisite
@@ -110,7 +127,7 @@ After the devcontainer starts, these steps require human input and cannot be aut
 | Apply GitHub branch protection | `APPLY=true bash scripts/bootstrap-github-settings.sh` | Requires `gh auth login` with repo admin scope |
 | Copy env config | `cp .env.example .env` | Per-developer preferences and optional secrets |
 | Copy Claude MCP config | `cp .claude/settings.json.example .claude/settings.json` | Endpoint and model may differ per machine |
-| Set GITHUB_TOKEN | Add to `.env` or host shell profile | Required for the github plugin to access repos/PRs/issues |
+| Authenticate gh (browser OAuth) | `gh auth login --hostname github.com --git-protocol https --web`, then `gh auth setup-git` | Interactive browser login; the OAuth token stays in gh's config volume — never in env vars or repo files |
 | Grant Projects scope | `gh auth refresh -s project` | Required to create/manage the Kanban board (Projects v2) |
 | Create the Kanban board | `APPLY=true bash scripts/bootstrap-project.sh` | Creates the per-repo Project board, fields, and labels |
 | Install Ollama (optional) | See [Ollama docs](https://ollama.com) | Only needed if you want local model routing |
@@ -244,7 +261,7 @@ with `/run-epic`. Full playbook (solo + team) in
 | `frontend-design` | `claude-plugins-official` | UI/UX design assistance with a11y and performance focus |
 | `code-review` | `claude-plugins-official` | Code review workflow |
 | `superpowers` | `claude-plugins-official` | Enhanced capabilities and full-context mode |
-| `github` | `claude-plugins-official` | GitHub operations (PRs, issues, code search) — requires GITHUB_TOKEN |
+| `github` | `claude-plugins-official` | GitHub operations (PRs, issues, code search) — uses `gh` CLI browser-OAuth auth |
 | `commit-commands` | `claude-plugins-official` | Git commit workflow assistance |
 
 Semgrep scanning runs CI-side with the free OSS engine and the repo's `.semgrep.yml`

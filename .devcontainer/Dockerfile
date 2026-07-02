@@ -50,9 +50,12 @@ RUN SNIPPET="export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhisto
 # Set `DEVCONTAINER` environment variable to help with orientation
 ENV DEVCONTAINER=true
 
-# Create workspace and config directories and set permissions
-RUN mkdir -p /workspace /home/node/.claude && \
-  chown -R node:node /workspace /home/node/.claude
+# Create workspace and config directories and set permissions.
+# /home/node/.config/gh must exist node-owned in the image so the gh-config
+# named volume inherits that ownership on first mount (gh stores its browser
+# OAuth token there — never in env vars or repo files).
+RUN mkdir -p /workspace /home/node/.claude /home/node/.config/gh && \
+  chown -R node:node /workspace /home/node/.claude /home/node/.config
 
 WORKDIR /workspace
 

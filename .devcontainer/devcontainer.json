@@ -48,7 +48,8 @@
   "remoteUser": "node",
   "mounts": [
     "source=claude-code-bashhistory-${devcontainerId},target=/commandhistory,type=volume",
-    "source=claude-code-config-${devcontainerId},target=/home/node/.claude,type=volume"
+    "source=claude-code-config-${devcontainerId},target=/home/node/.claude,type=volume",
+    "source=claude-code-ghconfig-${devcontainerId},target=/home/node/.config/gh,type=volume"
   ],
   "containerEnv": {
     "NODE_OPTIONS": "--max-old-space-size=4096",
@@ -59,8 +60,7 @@
     "CAVEMAN_ENABLED": "1",
     "CAVEMAN_INSTALL_SHA256": "8ddef49c15f089c26affed3c31d97142c683e1d37a1499ae557281ca09c2712c",
     "CAVEMAN_MODE": "lite",
-    "BMAD_ENABLED": "1",
-    "GITHUB_TOKEN": "${localEnv:GITHUB_TOKEN}"
+    "BMAD_ENABLED": "1"
   },
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
   "workspaceFolder": "/workspace",
