@@ -2,9 +2,10 @@
 # Auto-run the unattended day-0 setup steps on container start (wired into
 # devcontainer.json postStartCommand). Performs everything that does NOT need
 # interactive auth: copies config files into place, fills CODEOWNERS from the
-# git remote, and — only when gh is already authenticated — runs the GitHub
-# bootstraps. Ends by printing the day-0 status plus next steps so the build
-# log guides the user through the remaining (auth-only) work.
+# git remote, re-installs any missing Claude plugin, and — only when gh is
+# already authenticated — runs the GitHub bootstraps. Ends by printing the
+# day-0 status plus next steps so the build log guides the user through the
+# remaining (auth-only) work.
 #
 # Idempotent and safe to re-run on every container start: every step is guarded
 # by a missing-file / placeholder / marker check. Always exits 0 so it never
@@ -53,7 +54,22 @@ if [[ -f .github/CODEOWNERS ]] && grep -q "@your-org/your-team" .github/CODEOWNE
     fi
 fi
 
-# 3. Best-effort GitHub bootstraps — only when gh is already authenticated.
+# 3. Claude plugins — postStartCommand installs them before this script runs,
+#    but a manual re-run (e.g. after auth) must also self-heal a missing one.
+#    The installer is idempotent and skips plugins that are already present.
+if command -v claude >/dev/null 2>&1; then
+    _plugins="$(claude plugin list 2>/dev/null || echo "")"
+    for _p in skill-creator frontend-design code-review superpowers commit-commands; do
+        if ! echo "$_plugins" | grep -q "$_p"; then
+            echo "  >>  Installing missing Claude plugins (install-claude-plugins.sh)…"
+            bash scripts/install-claude-plugins.sh \
+                || echo "  !!  install-claude-plugins.sh failed (continuing)"
+            break
+        fi
+    done
+fi
+
+# 4. Best-effort GitHub bootstraps — only when gh is already authenticated.
 #    These mutate REMOTE GitHub settings, so log loudly. Each is guarded by its
 #    completion marker so it runs at most once.
 if gh auth status >/dev/null 2>&1; then
@@ -77,7 +93,7 @@ else
     echo "  --  gh not authenticated yet — skipping GitHub/board bootstraps (see next steps)."
 fi
 
-# 4. Show current day-0 status; print next steps if anything still remains.
+# 5. Show current day-0 status; print next steps if anything still remains.
 echo ""
 if bash scripts/check-day0.sh; then
     echo ""
@@ -85,12 +101,13 @@ if bash scripts/check-day0.sh; then
 else
     cat <<'EOF'
 
-Next steps (the only manual, auth-gated part):
-  1. Authenticate Claude:  run `claude` and log in.
-  2. Authenticate GitHub:
-       gh auth login --hostname github.com --git-protocol https --web
+Next steps (the only manual, auth-gated part — two browser logins):
+  1. Authenticate GitHub (one command grants the Projects scope too):
+       gh auth login --hostname github.com --git-protocol https --web -s project
        gh auth setup-git
-       gh auth refresh -s project
+     (already logged in without the scope? add it: gh auth refresh -s project)
+  2. Authenticate Claude:
+       claude auth login
   3. Re-run this script to finish the GitHub + Kanban board bootstraps:
        bash scripts/setup-day0.sh
   (Optional local model: install Ollama on the host, then
