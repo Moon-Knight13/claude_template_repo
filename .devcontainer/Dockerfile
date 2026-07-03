@@ -146,6 +146,11 @@ RUN wget "https://github.com/deluan/zsh-in-docker/releases/download/v${ZSH_IN_DO
   rm /tmp/zsh-in-docker.sh
 USER node
 
+# Pre-approve Claude Code's postinstall script so global installs — including
+# runtime auto-updates — run without npm's allow-scripts warning. Unpinned
+# (package name, not pkg@version) so future versions stay covered.
+RUN printf 'allow-scripts[]=@anthropic-ai/claude-code\n' >> /home/node/.npmrc
+
 # Install Claude
 RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 
