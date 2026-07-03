@@ -80,6 +80,25 @@ rules:
       severity: "WARNING"
       fix: "Redact or anonymize PII before including in prompts sent to external LLM APIs."
 
+  - id: atlas-t0051-prompt-injection
+    languages: [python]
+    message: "ATLAS AML.T0051 — Prompt Injection: untrusted external content used directly as LLM prompt content. Sanitize, validate, or clearly delimit untrusted input before including it in a prompt."
+    severity: WARNING
+    pattern-either:
+      # Untrusted sources passed verbatim as a message content field
+      - pattern: '{"role": $ROLE, "content": requests.get(...).text}'
+      - pattern: '{"role": $ROLE, "content": requests.get(...).json()}'
+      - pattern: '{"role": $ROLE, "content": open(...).read()}'
+      - pattern: '{"role": $ROLE, "content": input(...)}'
+      - pattern: '{"role": $ROLE, "content": $REQ.form[$K]}'
+      - pattern: '{"role": $ROLE, "content": $REQ.args[$K]}'
+      # Untrusted-content variable names interpolated into a prompt f-string
+      - pattern-regex: '(prompt|system_prompt|messages)\s*\+?=\s*f["''][^"''\n]*\{[^}\n]*(user_input|untrusted|request\.|response\.|html|page_content|file_content|tool_output|stdin)[^}\n]*\}'
+    metadata:
+      atlas_technique: "AML.T0051"
+      severity: "WARNING"
+      fix: "Treat external content as data, not instructions: validate/allowlist it, strip control tokens, and wrap it in clearly delimited blocks the system prompt tells the model not to obey."
+
   # ─── Layer D: PII in committed code ───────────────────────────────────────────
 
   - id: pii-literal-email-in-code
