@@ -173,7 +173,7 @@ still need a human are the interactive auth flows.
 | Copy env config (`cp .env.example .env`) | `setup-day0.sh` (skips if `.env` already exists) |
 | Copy Claude MCP config (`.claude/settings.json`) | `setup-day0.sh` (skips if it already exists) |
 | Populate CODEOWNERS | `setup-day0.sh` derives the owner from the git remote (warns if it looks like an org — orgs need `@org/team`, not a bare `@org`) |
-| Apply GitHub branch-protection ruleset | `setup-day0.sh`, best-effort **once gh is authenticated** |
+| Apply GitHub branch-protection ruleset | `setup-day0.sh`, best-effort **once gh is authenticated** (passes `ADMIN_BYPASS=true` so admins keep a break-glass bypass) |
 | Create the Kanban board | `setup-day0.sh`, best-effort **once gh has the `project` scope** |
 
 The two GitHub bootstraps need auth (below), so they apply on the **re-run** of
@@ -210,8 +210,9 @@ Bootstrap safety defaults:
 - only the default branch is targeted unless `REQUIRE_DEFAULT_BRANCH=false`
 - refuses to require code-owner reviews while `.github/CODEOWNERS` is unset or still
   the shipped placeholder owner (override with `REQUIRE_CODEOWNERS=false`)
-- repo admins may bypass by default; set `ADMIN_BYPASS=false` for a multi-maintainer
-  repo that wants no bypass
+- no admin bypass by default (admins are held to the same gates); the automated
+  `setup-day0.sh` run passes `ADMIN_BYPASS=true` for a solo-repo break-glass, and
+  manual callers can opt in the same way
 - pre-change snapshots are saved under `.ai/bootstrap-snapshots` for rollback
 
 ## Security Model
