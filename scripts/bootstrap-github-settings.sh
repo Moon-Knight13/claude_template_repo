@@ -210,10 +210,11 @@ gh api \
   -f delete_branch_on_merge=true >/dev/null
 
 # Allow GitHub Actions to create and approve pull requests — required by the
-# template-sync workflow (and any other PR-creating automation). Partial PATCH:
-# only this field is sent, so the repo's default_workflow_permissions is kept.
+# template-sync workflow (and any other PR-creating automation). This endpoint
+# only accepts PUT (PATCH 404s); the body is partial, so the repo's
+# default_workflow_permissions is kept.
 gh api \
-  --method PATCH \
+  --method PUT \
   -H "Accept: application/vnd.github+json" \
   "repos/$OWNER/$REPO/actions/permissions/workflow" \
   -F can_approve_pull_request_reviews=true >/dev/null
