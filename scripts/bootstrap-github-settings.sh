@@ -14,6 +14,10 @@ IFS=$'\n\t'
 #     semgrep, gitleaks) must pass before merge
 #   - linear history; no force-pushes, deletions, or direct pushes to the branch
 #
+# Also applies repo-level settings: merge hygiene (squash/rebase only,
+# auto-delete branches) and "Allow GitHub Actions to create and approve pull
+# requests" (needed by the template-sync workflow).
+#
 # Safe by default: dry-run unless APPLY=true, targets the default branch (or the
 # BRANCH override, once REQUIRE_DEFAULT_BRANCH=false unlocks it), and refuses to
 # require code-owner reviews while CODEOWNERS is still a placeholder.
@@ -159,6 +163,7 @@ else
 fi
 echo "Required checks: $CHECKS_RAW"
 echo "Approvals:       $REQUIRED_APPROVALS  Code-owner review: $REQUIRE_CODEOWNERS  Admin bypass: $ADMIN_BYPASS"
+echo "Actions PRs:     allow GitHub Actions to create and approve pull requests"
 echo "Apply mode:      $APPLY"
 
 if [[ "$APPLY" != "true" ]]; then
@@ -172,8 +177,11 @@ mkdir -p "$SNAPSHOT_DIR"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 RULESET_SNAPSHOT="$SNAPSHOT_DIR/${REPO}-ruleset-${STAMP}.json"
 REPO_SETTINGS_SNAPSHOT="$SNAPSHOT_DIR/${REPO}-repo-settings-${STAMP}.json"
+WORKFLOW_PERMS_SNAPSHOT="$SNAPSHOT_DIR/${REPO}-workflow-permissions-${STAMP}.json"
 
 gh api "repos/$OWNER/$REPO" > "$REPO_SETTINGS_SNAPSHOT"
+gh api "repos/$OWNER/$REPO/actions/permissions/workflow" > "$WORKFLOW_PERMS_SNAPSHOT" 2>/dev/null \
+  || echo '{}' > "$WORKFLOW_PERMS_SNAPSHOT"
 
 if [[ -n "$EXISTING_ID" ]]; then
   gh api "repos/$OWNER/$REPO/rulesets/$EXISTING_ID" > "$RULESET_SNAPSHOT" 2>/dev/null || echo '{}' > "$RULESET_SNAPSHOT"
@@ -200,6 +208,15 @@ gh api \
   -f allow_rebase_merge=true \
   -f allow_squash_merge=true \
   -f delete_branch_on_merge=true >/dev/null
+
+# Allow GitHub Actions to create and approve pull requests — required by the
+# template-sync workflow (and any other PR-creating automation). Partial PATCH:
+# only this field is sent, so the repo's default_workflow_permissions is kept.
+gh api \
+  --method PATCH \
+  -H "Accept: application/vnd.github+json" \
+  "repos/$OWNER/$REPO/actions/permissions/workflow" \
+  -F can_approve_pull_request_reviews=true >/dev/null
 
 mkdir -p .ai && touch .ai/bootstrap-completed
 echo "Bootstrap applied successfully."

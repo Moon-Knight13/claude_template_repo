@@ -30,11 +30,13 @@ See [docs/TEMPLATE_GUIDE.md](docs/TEMPLATE_GUIDE.md) for the full setup guide in
 
 2. **Open in devcontainer** — VS Code prompts to reopen; accept. The container installs all tooling automatically on start.
 
-3. **Complete day-0 setup** — run the checklist in the container terminal:
+3. **Complete day-0 setup** — two browser logins; everything else is applied automatically on container start:
    ```bash
-   bash scripts/check-day0.sh
+   gh auth login --hostname github.com --git-protocol https --web -s project && gh auth setup-git
+   claude auth login
+   bash scripts/setup-day0.sh   # finishes the auth-gated bootstraps, prints status
    ```
-   Or from Claude: `/day0-check`
+   Verify anytime with `bash scripts/check-day0.sh` — or from Claude: `/day0-check`
 
 4. **Validate the template** — confirm all template integrity checks pass:
    ```bash
@@ -56,11 +58,8 @@ scripts/             Bootstrap (incl. board), routing, CI helpers, and template 
 When you start a new project from this template:
 
 1. Replace this `README.md` with your project README — use [`docs/README.template.md`](docs/README.template.md) as a starting point.
-2. Customise `.github/CODEOWNERS` with real GitHub users or teams.
-3. Add `scripts/ci/lint-*.sh` and `scripts/ci/test-*.sh` for your language stack (see `scripts/ci/README.md`).
-4. Copy config files: `cp .env.example .env && cp .claude/settings.json.example .claude/settings.json`
-5. Run `APPLY=true bash scripts/bootstrap-github-settings.sh` to enable branch protection.
-6. Set up the Kanban board: `gh auth refresh -s project` then `APPLY=true bash scripts/bootstrap-project.sh` (see [docs/KANBAN_WORKFLOW.md](docs/KANBAN_WORKFLOW.md)).
+2. Add `scripts/ci/lint-*.sh` and `scripts/ci/test-*.sh` for your language stack (see `scripts/ci/README.md`).
+3. Do the two day-0 logins (quick start step 3) — `scripts/setup-day0.sh` then fills CODEOWNERS, copies configs, applies branch protection, and creates the Kanban board (see [docs/KANBAN_WORKFLOW.md](docs/KANBAN_WORKFLOW.md)).
 
 ## License
 

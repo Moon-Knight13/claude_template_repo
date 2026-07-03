@@ -102,9 +102,9 @@ Claude auth is stored in a mounted user config volume and persists across contai
 Before first coding session inside devcontainer:
 
 1. Open terminal in container.
-2. Run `claude login`.
-3. Complete auth flow.
-4. Verify with `claude --version` and a simple Claude command.
+2. Run `claude auth login`.
+3. Complete the browser auth flow.
+4. Verify with `claude auth status` (expect `"loggedIn": true`).
 
 ### GitHub Credential Prerequisite
 
@@ -144,13 +144,14 @@ This template verifies the pinned Caveman installer script checksum before execu
    - BMAD workflow install
    - pre-commit hooks install
    - Claude Code official plugins install (skill-creator, frontend-design, code-review, superpowers, commit-commands)
-   - day-0 auto-setup (`scripts/setup-day0.sh`): copies `.env` + `.claude/settings.json`, fills CODEOWNERS from the git remote, and (once gh is authenticated) applies the GitHub + Kanban bootstraps
+   - day-0 auto-setup (`scripts/setup-day0.sh`): copies `.env` + `.claude/settings.json`, fills CODEOWNERS from the git remote, re-installs any missing Claude plugin, and (once gh is authenticated) applies the GitHub + Kanban bootstraps
 
 Note: startup is intentionally deterministic; pre-commit hook versions are not auto-updated unless `PRECOMMIT_AUTOUPDATE=1` is set.
 
-5. Authenticate — the only manual steps (interactive, cannot be automated):
-   - `claude login`
-   - `gh auth login --hostname github.com --git-protocol https --web`, then `gh auth setup-git`, then `gh auth refresh -s project`
+5. Authenticate — the only manual steps (two interactive browser logins, no tokens on disk):
+   - `gh auth login --hostname github.com --git-protocol https --web -s project`, then `gh auth setup-git`
+     (`-s project` grants the Kanban/Projects scope in the same login; already logged in? add it with `gh auth refresh -s project`)
+   - `claude auth login`
 6. Re-run the auto-setup so the now-unblocked GitHub + Kanban bootstraps apply, then verify:
 
 ```bash
@@ -173,7 +174,9 @@ still need a human are the interactive auth flows.
 | Copy env config (`cp .env.example .env`) | `setup-day0.sh` (skips if `.env` already exists) |
 | Copy Claude MCP config (`.claude/settings.json`) | `setup-day0.sh` (skips if it already exists) |
 | Populate CODEOWNERS | `setup-day0.sh` derives the owner from the git remote (warns if it looks like an org — orgs need `@org/team`, not a bare `@org`) |
+| Claude plugins | postStartCommand; `setup-day0.sh` re-installs any missing plugin on re-run |
 | Apply GitHub branch-protection ruleset | `setup-day0.sh`, best-effort **once gh is authenticated** (passes `ADMIN_BYPASS=true` so admins keep a break-glass bypass) |
+| Allow Actions to create/approve PRs | `bootstrap-github-settings.sh` (applied with the ruleset; needed by template-sync) |
 | Create the Kanban board | `setup-day0.sh`, best-effort **once gh has the `project` scope** |
 
 The two GitHub bootstraps need auth (below), so they apply on the **re-run** of
@@ -181,15 +184,23 @@ The two GitHub bootstraps need auth (below), so they apply on the **re-run** of
 
 ### Manual (interactive auth — the only human steps)
 
+Two browser logins. No tokens ever touch env vars or repo files.
+
 | Step | Command | Why it's manual |
 |------|---------|-----------------|
-| Authenticate Claude | `claude login` | Interactive browser/device login |
-| Authenticate gh (browser OAuth) | `gh auth login --hostname github.com --git-protocol https --web`, then `gh auth setup-git` | Interactive browser login; the OAuth token stays in gh's config volume — never in env vars or repo files |
-| Grant Projects scope | `gh auth refresh -s project` | Required to create/manage the Kanban board (Projects v2) |
-| Finish the bootstraps | `bash scripts/setup-day0.sh` | Re-run after auth so the GitHub ruleset + board bootstraps apply |
-| Allow Actions to open PRs | Settings > Actions > General > "Allow GitHub Actions to create and approve pull requests" | Required for template-sync (and other PR-creating automation); repo settings need admin UI/API |
-| Add `TEMPLATE_SYNC_TOKEN` secret (optional) | Fine-grained PAT: contents + pull requests + workflows write | Only needed when a template-sync PR changes `.github/workflows/` files; falls back to `GITHUB_TOKEN` otherwise |
-| Install Ollama (optional) | See [Ollama docs](https://ollama.com) | Only needed if you want local model routing |
+| Authenticate gh (browser OAuth) | `gh auth login --hostname github.com --git-protocol https --web -s project`, then `gh auth setup-git` | Interactive browser login; `-s project` grants the Kanban/Projects scope in the same flow; the OAuth token stays in gh's config volume — never in env vars or repo files |
+| Authenticate Claude | `claude auth login` | Interactive browser login |
+| Finish the bootstraps | `bash scripts/setup-day0.sh` | Re-run after auth so the GitHub ruleset + board bootstraps apply (also runs on the next container start) |
+
+If gh was already logged in without the Projects scope, add it with
+`gh auth refresh -s project`.
+
+### Optional
+
+| Step | Command | Notes |
+|------|---------|-------|
+| Add `TEMPLATE_SYNC_TOKEN` secret | Fine-grained PAT: contents + pull requests + workflows write | Only needed when a template-sync PR changes `.github/workflows/` files; falls back to `GITHUB_TOKEN` otherwise |
+| Install Ollama | See [Ollama docs](https://ollama.com) | Only needed for local model routing; `check-day0.sh` reports it as a non-blocking WARN when unreachable |
 
 The manual bootstrap commands remain available as a fallback:
 `APPLY=true bash scripts/bootstrap-github-settings.sh` and
@@ -493,7 +504,7 @@ that needs syncing at all.
 
 - Local model unreachable: verify host service and port 11434.
 - Local model unreachable from container: verify host endpoint with `curl http://localhost:11434/api/tags` on host, then check devcontainer firewall output.
-- Claude auth missing in container: run `claude login` inside container and confirm `/home/node/.claude` is populated.
+- Claude auth missing in container: run `claude auth login` inside container and confirm `claude auth status` reports `"loggedIn": true`.
 - Bootstrap permission error: ensure gh auth user is repo admin.
 - CI missing script failure: add matching scripts under `scripts/ci` for detected stack.
 - Gitleaks false positive on a test file: add the file path to the rule's `paths` allowlist in `.gitleaks.toml`.
