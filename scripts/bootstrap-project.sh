@@ -77,18 +77,6 @@ fields_json() { gh project field-list "$PROJECT_NUMBER" --owner "@me" --format j
 
 field_id() { fields_json | jq -r --arg n "$1" '.fields[] | select(.name == $n) | .id' | head -n1; }
 
-# Build a GraphQL single-select options literal, cycling through option colors.
-options_literal() {
-  local colors=(GRAY BLUE GREEN YELLOW ORANGE RED PURPLE PINK)
-  local out="" i=0 name
-  for name in "$@"; do
-    local color="${colors[$(( i % ${#colors[@]} ))]}"
-    local esc="${name//\"/\\\"}"
-    out+="{name:\"$esc\",color:$color,description:\"\"},"
-    i=$((i+1))
-  done
-  printf '[%s]' "${out%,}"
-}
 
 # Set a single-select field's options (creates the field if missing).
 ensure_single_select() {
@@ -102,12 +90,15 @@ ensure_single_select() {
       --name "$name" --data-type SINGLE_SELECT --single-select-options "$csv" >/dev/null
     return
   fi
-  # Field exists — reconcile ADDITIVELY. updateProjectV2Field replaces the entire
-  # option set, and any option sent without an id is created fresh, so re-sending
-  # existing options by name alone would delete+recreate them and DETACH every card
-  # currently set to that option (e.g. a board still on the built-in Todo/Done).
-  # To preserve board state we keep every existing option verbatim (by its id) and
-  # append only the wanted options that are genuinely missing.
+  # Field exists — reconcile to the DESIRED ORDER while preserving board state.
+  # updateProjectV2Field replaces the entire option set: an option sent WITH its
+  # id is kept (cards stay attached); an option sent without an id is created; any
+  # existing option omitted from the payload is deleted (detaching its cards). So
+  # we emit the wanted options in order (reusing the id where a name already
+  # exists), then append any extra existing options not in the wanted list — those
+  # are preserved, never dropped. This fixes both missing options AND wrong order
+  # (e.g. a board still carrying the pre-seeded Todo/In Progress/Done order that an
+  # append-only reconcile could never correct).
   local existing
   existing="$(gh api graphql -f query="query{node(id:\"$fid\"){... on ProjectV2SingleSelectField{options{id name color description}}}}" \
     --jq '.data.node.options // []' 2>/dev/null || echo '[]')"
@@ -122,32 +113,42 @@ ensure_single_select() {
     return
   fi
 
-  local missing=() opt
-  for opt in "$@"; do
-    jq -e --arg n "$opt" 'any(.[]; .name == $n)' <<<"$existing" >/dev/null \
-      || missing+=("$opt")
-  done
-  if [[ ${#missing[@]} -eq 0 ]]; then
-    echo "Field '$name' already has all required options."
+  # Desired option names as a JSON array.
+  local wanted_json
+  wanted_json="$(printf '%s\n' "$@" | jq -R . | jq -s .)"
+
+  # Skip the mutation when the field already has exactly the wanted options in the
+  # wanted order (wanted first, then any extras). Newline-join is safe: option
+  # names are single-line.
+  local target_order current_order
+  target_order="$(jq -r --argjson w "$wanted_json" '
+    ([ $w[] ] + [ .[].name | select(. as $n | ($w | index($n)) | not) ]) | join("\n")
+  ' <<<"$existing")"
+  current_order="$(jq -r '[ .[].name ] | join("\n")' <<<"$existing")"
+  if [[ "$target_order" == "$current_order" ]]; then
+    echo "Field '$name' already has the required options in order."
     return
   fi
-  echo "Adding missing options to field '$name': ${missing[*]}"
+  echo "Reconciling field '$name' options to desired order."
 
-  # Existing options first (with ids → preserved), then the new ones (no id → created).
-  local kept new_lit combined
-  kept="$(jq -r '
+  # Build the GraphQL singleSelectOptions literal in target order: reuse id+color
+  # for names that already exist; assign a cycling color to newly-created ones.
+  local combined
+  combined="$(jq -rn --argjson existing "$existing" --argjson wanted "$wanted_json" '
+    def colors: ["GRAY","BLUE","GREEN","YELLOW","ORANGE","RED","PURPLE","PINK"];
     def esc: gsub("\""; "\\\"");
-    [ .[] | "{id:\"\(.id)\",name:\"\(.name|esc)\",color:\(.color),description:\"\(.description // "" | esc)\"}" ] | join(",")
-  ' <<<"$existing")"
-  new_lit="$(options_literal "${missing[@]}")"   # -> [ {..},{..} ]
-  new_lit="${new_lit#[}"; new_lit="${new_lit%]}"
-  if [[ -n "$kept" && -n "$new_lit" ]]; then
-    combined="[$kept,$new_lit]"
-  else
-    combined="[${kept}${new_lit}]"
-  fi
+    ($existing | map({(.name): .}) | add // {}) as $byname
+    | ([ $wanted[] | $byname[.] // {name: ., new: true} ]
+       + [ $existing[] | select(.name as $n | ($wanted | index($n)) | not) ]) as $opts
+    | [ $opts | to_entries[]
+        | .key as $i | .value as $o
+        | ( if $o.id then "id:\"\($o.id)\"," else "" end ) as $idp
+        | ( $o.color // (colors[$i % (colors|length)]) ) as $col
+        | "{\($idp)name:\"\($o.name|esc)\",color:\($col),description:\"\($o.description // "" | esc)\"}"
+      ] | "[" + join(",") + "]"
+  ')"
   gh api graphql -f query="mutation{updateProjectV2Field(input:{fieldId:\"$fid\",singleSelectOptions:$combined}){projectV2Field{... on ProjectV2SingleSelectField{id}}}}" >/dev/null \
-    || echo "  WARN: could not update '$name' options automatically; add these in the board UI: ${missing[*]}" >&2
+    || echo "  WARN: could not update '$name' options automatically; set them in the board UI: ${*}" >&2
 }
 
 # Status is the built-in board field; align it to the kanban flow.
@@ -158,13 +159,16 @@ ensure_single_select "Route" "${ROUTE_OPTIONS[@]}"
 # --- Link board to repo ---------------------------------------------------------
 # Surface the real outcome instead of swallowing stderr: an already-linked board is
 # benign, but a permission/scope failure must not masquerade as success.
-if link_out="$(gh project link "$PROJECT_NUMBER" --owner "@me" --repo "$OWNER_REPO" 2>&1)"; then
+# gh resolves --repo against the literal --owner value, so "@me" produces the
+# bogus repo "@me/<repo>". Pass the real login and the BARE repo name, matching
+# gh's own example (`--owner monalisa --repo my_repo`).
+if link_out="$(gh project link "$PROJECT_NUMBER" --owner "$OWNER_LOGIN" --repo "$REPO" 2>&1)"; then
   echo "Linked board to $OWNER_REPO."
 elif printf '%s' "$link_out" | grep -qi "already"; then
   echo "Board already linked to $OWNER_REPO."
 else
   echo "WARNING: failed to link board to $OWNER_REPO — fix and re-run, or link manually:" >&2
-  printf '  gh project link %s --owner @me --repo %s\n' "$PROJECT_NUMBER" "$OWNER_REPO" >&2
+  printf '  gh project link %s --owner %s --repo %s\n' "$PROJECT_NUMBER" "$OWNER_LOGIN" "$REPO" >&2
   printf '%s\n' "$link_out" >&2
 fi
 
