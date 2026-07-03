@@ -64,6 +64,6 @@
   },
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
   "workspaceFolder": "/workspace",
-  "postStartCommand": "sudo /usr/local/bin/init-firewall.sh && bash scripts/install-caveman.sh && bash scripts/install-bmad.sh && bash scripts/bootstrap-bmad.sh && bash scripts/bootstrap-precommit.sh && bash scripts/install-claude-plugins.sh",
+  "postStartCommand": "sudo /usr/local/bin/init-firewall.sh && bash scripts/install-caveman.sh && bash scripts/install-bmad.sh && bash scripts/bootstrap-bmad.sh && bash scripts/bootstrap-precommit.sh && bash scripts/install-claude-plugins.sh && bash scripts/setup-day0.sh",
   "waitFor": "postStartCommand"
 }

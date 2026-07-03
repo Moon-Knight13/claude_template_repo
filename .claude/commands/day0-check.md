@@ -2,6 +2,13 @@
 
 Validate that all required day-0 setup steps are complete and guide through any that are missing.
 
+Note: most day-0 steps now run automatically on container start via `scripts/setup-day0.sh`
+(copies `.env` + `.claude/settings.json`, fills CODEOWNERS from the git remote, and — once
+`gh` is authenticated — applies the GitHub ruleset + Kanban board bootstraps). This command
+is the verifier and the guide for the remaining auth-gated steps. After the user completes
+the auth steps below, prefer telling them to re-run `bash scripts/setup-day0.sh` (which
+auto-applies the GitHub bootstraps) over running the individual `bootstrap-*` commands by hand.
+
 ## Instructions
 
 1. Run the validation script via Bash:
