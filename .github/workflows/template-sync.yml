@@ -1,0 +1,53 @@
+name: template-sync
+
+# Pulls the latest changes from the template repo this project was created from
+# and opens a reviewable PR (labeled `template-sync`) with the diff. This is how
+# template bug fixes reach repos that were stamped out before the fix landed.
+#
+# - Runs in DERIVED repos only; the template repo itself is skipped by the job
+#   guard below.
+# - Per-project files listed in .templatesyncignore are never synced.
+# - Token: the default GITHUB_TOKEN is enough until a sync PR needs to change
+#   files under .github/workflows/ — pushing those requires the `workflow`
+#   scope, which GITHUB_TOKEN does not have. For that case, store a fine-grained
+#   PAT (contents: write, pull requests: write, workflows: write on this repo)
+#   as the TEMPLATE_SYNC_TOKEN secret. See docs/TEMPLATE_GUIDE.md
+#   "Template Updates (Downstream Sync)".
+# - Repo setting required once: Settings > Actions > General > Workflow
+#   permissions > "Allow GitHub Actions to create and approve pull requests".
+
+on:
+  schedule:
+    - cron: "0 5 * * 1" # weekly, Monday 05:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: template-sync-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Never sync the template repo from itself.
+    if: github.repository != 'Moon-Knight13/claude_template_repo'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          # Required by actions-template-sync (see its README, issues #557/#627).
+          persist-credentials: false
+
+      - name: Sync from template
+        uses: AndreasAugustin/actions-template-sync@8a0f668b83c32a0f673353086d74f12b8853d4f5 # v2.5.3
+        with:
+          source_repo_path: Moon-Knight13/claude_template_repo
+          upstream_branch: main
+          target_gh_token: ${{ secrets.TEMPLATE_SYNC_TOKEN || github.token }}
+          pr_title: "chore(template): sync updates from claude_template_repo"
+          pr_labels: template-sync
+          pr_commit_msg: "chore(template): sync updates from claude_template_repo"

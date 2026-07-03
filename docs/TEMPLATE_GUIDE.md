@@ -130,6 +130,8 @@ After the devcontainer starts, these steps require human input and cannot be aut
 | Authenticate gh (browser OAuth) | `gh auth login --hostname github.com --git-protocol https --web`, then `gh auth setup-git` | Interactive browser login; the OAuth token stays in gh's config volume — never in env vars or repo files |
 | Grant Projects scope | `gh auth refresh -s project` | Required to create/manage the Kanban board (Projects v2) |
 | Create the Kanban board | `APPLY=true bash scripts/bootstrap-project.sh` | Creates the per-repo Project board, fields, and labels |
+| Allow Actions to open PRs | Settings > Actions > General > "Allow GitHub Actions to create and approve pull requests" | Required for template-sync (and other PR-creating automation); repo settings need admin UI/API |
+| Add `TEMPLATE_SYNC_TOKEN` secret (optional) | Fine-grained PAT: contents + pull requests + workflows write | Only needed when a template-sync PR changes `.github/workflows/` files; falls back to `GITHUB_TOKEN` otherwise |
 | Install Ollama (optional) | See [Ollama docs](https://ollama.com) | Only needed if you want local model routing |
 
 Run `bash scripts/check-day0.sh` at any time to see which steps are still pending.
@@ -335,7 +337,9 @@ See [docs/AI_ROUTING_POLICY.md](AI_ROUTING_POLICY.md) and `scripts/route-model.s
 ## What Propagates vs Manual Setup
 
 Propagates from template files:
-- workflows, scripts, docs, pre-commit config
+- workflows, scripts, docs, pre-commit config — kept up to date after repo
+  creation by the template-sync workflow (see
+  [Template Updates](#template-updates-downstream-sync))
 
 Manual per new repository:
 - run bootstrap script for branch protections and required checks
@@ -356,6 +360,44 @@ Manual per new repository:
 - Use semantic tags for template releases.
 - Keep tool pins explicit in scripts and workflows.
 - Accept upgrades through reviewed pull requests (Dependabot or manual).
+
+## Template Updates (Downstream Sync)
+
+GitHub templates are one-time snapshots: a fix landing in this repo does not
+reach repos already created from it. The `template-sync` workflow
+(`.github/workflows/template-sync.yml`) closes that gap. It ships with the
+template, so every derived repo carries it from day one; weekly (and on manual
+`workflow_dispatch`) it pulls the template's `main` and opens a PR labeled
+`template-sync` containing the diff — reviewed and merged like any other PR.
+The template repo itself skips the job via a repository guard.
+
+What syncs and what doesn't:
+- Files listed in `.templatesyncignore` (README.md, CODEOWNERS, .env.example,
+  LICENSE) are never overwritten; extend that file with any project paths that
+  should stay divergent. Each repo owns its copy — the ignore file itself is
+  not synced.
+- Files that exist only in the derived repo (your source tree) are never
+  touched.
+- Template files you edited locally will conflict in the sync PR — resolve
+  there, or add the path to `.templatesyncignore` to opt out permanently.
+
+Setup per derived repo (one-time):
+- Enable Settings > Actions > General > Workflow permissions >
+  "Allow GitHub Actions to create and approve pull requests".
+- The default `GITHUB_TOKEN` is sufficient until a sync PR needs to change
+  files under `.github/workflows/` — pushing those requires the `workflow`
+  scope. For that, add a fine-grained PAT (contents: write, pull requests:
+  write, workflows: write, scoped to the repo) as the `TEMPLATE_SYNC_TOKEN`
+  secret; the workflow falls back to `GITHUB_TOKEN` when the secret is absent.
+
+Repos created before the workflow existed can retrofit it with
+`bash scripts/adopt-template-sync.sh` (fetches the two files from the template
+via `gh` and prints the setup steps).
+
+Possible future refinements (not implemented): converting the security
+workflows to reusable `workflow_call` workflows referenced by tag, and
+publishing a prebuilt devcontainer image — both would shrink the file surface
+that needs syncing at all.
 
 ## Troubleshooting
 
