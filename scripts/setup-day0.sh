@@ -17,7 +17,7 @@ _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Operate from the repo root so relative paths (.env, .github/…) resolve.
 cd "$_SCRIPT_DIR/.." || exit 0
 
-# shellcheck source=scripts/lib/template-detect.sh
+# shellcheck disable=SC1090,SC1091
 source "$_SCRIPT_DIR/lib/template-detect.sh"
 
 echo "Day-0 auto-setup"

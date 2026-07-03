@@ -29,7 +29,7 @@ echo "======================"
 # itself fails them by design (placeholder CODEOWNERS, no .env, no markers).
 # is_template_repo() lives in the shared helper so setup-day0.sh reuses it.
 _SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=scripts/lib/template-detect.sh
+# shellcheck disable=SC1090,SC1091
 source "$_SCRIPT_DIR/lib/template-detect.sh"
 
 if is_template_repo; then
