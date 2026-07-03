@@ -74,11 +74,12 @@ set_field() {
 status_for_slug() {
   case "$1" in
     backlog)     echo "Backlog" ;;
+    todo)        echo "Todo" ;;
     ready)       echo "Ready" ;;
     in-progress|wip) echo "In Progress" ;;
     in-review|review) echo "In Review" ;;
     done)        echo "Done" ;;
-    *) die "unknown status slug '$1' (backlog|ready|in-progress|in-review|done)" ;;
+    *) die "unknown status slug '$1' (backlog|todo|ready|in-progress|in-review|done)" ;;
   esac
 }
 

@@ -12,7 +12,7 @@ Created per repo by `scripts/bootstrap-project.sh`.
 
 | Surface | Values | Meaning |
 |---------|--------|---------|
-| **Status** (columns) | Backlog → Ready → In Progress → In Review → Done | The at-a-glance overview and delivery stage |
+| **Status** (columns) | Backlog → Todo → Ready → In Progress → In Review → Done | The at-a-glance overview and delivery stage |
 | **BMAD Stage** (field) | Discovery … Security & Release | Which planning stage a card came from (mostly on epics) |
 | **Route** (field) | Human · Claude · Local | Who should work the card — derived from `scripts/route-model.sh` |
 | `agent-ready` (label) | — | Card is triaged and may be claimed by an agent session |

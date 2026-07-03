@@ -54,7 +54,9 @@ if is_template_repo; then
 fi
 
 # 1. CODEOWNERS populated with real owner
-if [[ -f ".github/CODEOWNERS" ]] && ! grep -q "@your-org/your-team" .github/CODEOWNERS; then
+# Ignore comment lines: the placeholder legitimately appears in the file's header
+# comments, so only real owner rules should be scanned for the unreplaced default.
+if [[ -f ".github/CODEOWNERS" ]] && ! grep -v '^[[:space:]]*#' .github/CODEOWNERS | grep -q "@your-org/your-team"; then
     check "CODEOWNERS customized with real owners" "pass" ""
 else
     check "CODEOWNERS customized with real owners" "fail" \
@@ -143,7 +145,7 @@ if [[ "$LOCAL_MODEL_ENABLED" == "true" ]]; then
         check "Ollama reachable at $LOCAL_MODEL_ENDPOINT" "pass" ""
     else
         check "Ollama reachable at $LOCAL_MODEL_ENDPOINT" "fail" \
-            "Install Ollama on your host: https://ollama.com — then run: ollama pull qwen2.5-coder:7b"
+            "Install + pull (https://ollama.com; ollama pull qwen2.5-coder:7b), then bind to 0.0.0.0 so the container can reach it (default 127.0.0.1 is loopback-only). See docs/TEMPLATE_GUIDE.md 'Bind Ollama so the container can reach it' — read the security disclaimer first."
     fi
 else
     echo "  --  Ollama check skipped (LOCAL_MODEL_ENABLED=false)"

@@ -19,7 +19,7 @@ APPLY="${APPLY:-false}"
 PROJECT_ENV="${PROJECT_ENV:-.ai/project.env}"
 MARKER="${PROJECT_MARKER:-.ai/project-bootstrap-completed}"
 
-STATUS_OPTIONS=("Backlog" "Ready" "In Progress" "In Review" "Done")
+STATUS_OPTIONS=("Backlog" "Todo" "Ready" "In Progress" "In Review" "Done")
 BMAD_OPTIONS=("Discovery" "Requirements" "Architecture" "Task Decomposition" "Implementation" "Security & Release")
 ROUTE_OPTIONS=("Human" "Claude" "Local")
 
@@ -156,8 +156,17 @@ ensure_single_select "BMAD Stage" "${BMAD_OPTIONS[@]}"
 ensure_single_select "Route" "${ROUTE_OPTIONS[@]}"
 
 # --- Link board to repo ---------------------------------------------------------
-gh project link "$PROJECT_NUMBER" --owner "@me" --repo "$OWNER_REPO" >/dev/null 2>&1 \
-  || echo "Note: project already linked to $OWNER_REPO (or link not permitted)."
+# Surface the real outcome instead of swallowing stderr: an already-linked board is
+# benign, but a permission/scope failure must not masquerade as success.
+if link_out="$(gh project link "$PROJECT_NUMBER" --owner "@me" --repo "$OWNER_REPO" 2>&1)"; then
+  echo "Linked board to $OWNER_REPO."
+elif printf '%s' "$link_out" | grep -qi "already"; then
+  echo "Board already linked to $OWNER_REPO."
+else
+  echo "WARNING: failed to link board to $OWNER_REPO — fix and re-run, or link manually:" >&2
+  printf '  gh project link %s --owner @me --repo %s\n' "$PROJECT_NUMBER" "$OWNER_REPO" >&2
+  printf '%s\n' "$link_out" >&2
+fi
 
 # --- Coordination labels --------------------------------------------------------
 create_label() { gh label create "$1" --color "$2" --description "$3" --force >/dev/null 2>&1 || true; }
