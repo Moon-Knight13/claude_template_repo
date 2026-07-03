@@ -109,11 +109,11 @@ tags = ["pii", "phone"]
 
 # ── Global allowlist ──────────────────────────────────────────────────────────
 
+# NOTE: no global `paths` allowlist on purpose. A global path entry disables
+# EVERY rule (secrets included) for that file. Files like README.md are instead
+# allowlisted per-rule on the PII rules above, so secret detection stays active.
 [allowlist]
 description = "Global allowlist for known non-secret test strings"
-paths = [
-  '''(^|\/)README\.md$''',
-]
 regexes = [
   '''example[_-]?token''',
   '''dummy[_-]?secret''',
