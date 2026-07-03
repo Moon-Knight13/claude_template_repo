@@ -7,6 +7,10 @@ name: template-sync
 # - Runs in DERIVED repos only; the template repo itself is skipped by the job
 #   guard below.
 # - Per-project files listed in .templatesyncignore are never synced.
+# - Conflict behavior: the sync merges with `-X theirs` — on lines where this
+#   repo and the template both changed, the PR proposes the TEMPLATE's version
+#   (i.e. reverts the local edit). Review sync PR diffs for unexpected reverts;
+#   see docs/TEMPLATE_GUIDE.md "Conflict behavior" for the full decision guide.
 # - Token: the default GITHUB_TOKEN is enough until a sync PR needs to change
 #   files under .github/workflows/ — pushing those requires the `workflow`
 #   scope, which GITHUB_TOKEN does not have. For that case, store a fine-grained

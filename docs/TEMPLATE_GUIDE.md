@@ -378,8 +378,29 @@ What syncs and what doesn't:
   not synced.
 - Files that exist only in the derived repo (your source tree) are never
   touched.
-- Template files you edited locally will conflict in the sync PR — resolve
-  there, or add the path to `.templatesyncignore` to opt out permanently.
+
+### Conflict behavior — read before merging a sync PR
+
+The sync merges with `-X theirs`: when you and the template edited the **same
+lines** of a synced file, the sync PR arrives with the **template's version —
+silently proposing to revert your local edit**. Nothing blocks and there are no
+conflict markers; the only signal is the PR diff itself. So review sync PRs
+specifically for unexpected reverts of local customizations. Edits to
+*different* lines or files merge cleanly and both survive.
+
+This default is deliberate: the sync uses squash merges, so git records no
+merge base, and without `-X theirs` every previously resolved divergence would
+re-conflict on every future sync. Handle divergence by kind:
+- **Transient** (you fixed something the template later fixed differently):
+  accept the template version, or edit the sync PR branch before merging.
+- **Permanent** (intentional per-project customization of a template file):
+  add the path to `.templatesyncignore` so it stops being proposed at all.
+- **Conflict-heavy sync** (too tangled to review as a diff): close the sync PR
+  and do a real merge locally with full conflict markers —
+  `git remote add template https://github.com/Moon-Knight13/claude_template_repo`
+  (once), then `git fetch template && git merge template/main` (add
+  `--allow-unrelated-histories` the first time). After that first merge, git
+  has a recorded base and future manual merges are incremental.
 
 Setup per derived repo (one-time):
 - Enable Settings > Actions > General > Workflow permissions >
