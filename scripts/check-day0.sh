@@ -85,10 +85,10 @@ else
         "Run: APPLY=false bash scripts/bootstrap-github-settings.sh (dry-run), then: APPLY=true bash scripts/bootstrap-github-settings.sh"
 fi
 
-# 5. Claude plugins installed (all 6 required plugins)
+# 5. Claude plugins installed (all 5 required plugins)
 _installed_plugins=$(claude plugin list 2>/dev/null || echo "")
 _all_plugins_ok=true
-for _p in skill-creator frontend-design code-review superpowers github commit-commands; do
+for _p in skill-creator frontend-design code-review superpowers commit-commands; do
     if ! echo "$_installed_plugins" | grep -q "${_p}"; then
         _all_plugins_ok=false
         break

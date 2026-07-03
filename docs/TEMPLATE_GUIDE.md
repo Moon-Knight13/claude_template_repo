@@ -105,7 +105,7 @@ This template verifies the pinned Caveman installer script checksum before execu
    - Caveman token compression install
    - BMAD workflow install
    - pre-commit hooks install
-   - Claude Code official plugins install (skill-creator, frontend-design, code-review, superpowers, github, commit-commands)
+   - Claude Code official plugins install (skill-creator, frontend-design, code-review, superpowers, commit-commands)
 
 Note: startup is intentionally deterministic; pre-commit hook versions are not auto-updated unless `PRECOMMIT_AUTOUPDATE=1` is set.
 
@@ -261,8 +261,12 @@ with `/run-epic`. Full playbook (solo + team) in
 | `frontend-design` | `claude-plugins-official` | UI/UX design assistance with a11y and performance focus |
 | `code-review` | `claude-plugins-official` | Code review workflow |
 | `superpowers` | `claude-plugins-official` | Enhanced capabilities and full-context mode |
-| `github` | `claude-plugins-official` | GitHub operations (PRs, issues, code search) — uses `gh` CLI browser-OAuth auth |
 | `commit-commands` | `claude-plugins-official` | Git commit workflow assistance |
+
+The `github` plugin is intentionally not installed: its MCP server requires a
+`GITHUB_PERSONAL_ACCESS_TOKEN` env var, which this template's no-tokens-in-env
+policy forbids. All GitHub operations (PRs, issues, board) go through the
+browser-OAuth-authenticated `gh` CLI instead.
 
 Semgrep scanning runs CI-side with the free OSS engine and the repo's `.semgrep.yml`
 rules (see `.github/workflows/semgrep.yml`) — no Semgrep Guardian plugin, login, or
