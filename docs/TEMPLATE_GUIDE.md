@@ -57,6 +57,44 @@ curl http://localhost:11434/api/tags
 
 This template maps container access to host via host.docker.internal and firewall rules allow only host gateway tcp/11434.
 
+#### Bind Ollama so the container can reach it
+
+By default Ollama listens on `127.0.0.1:11434` (loopback only). The dev container
+reaches the host over a separate gateway address, so a loopback-only Ollama is
+**not reachable from the container** — `curl http://host.docker.internal:11434`
+fails with connection refused. You must bind Ollama to `0.0.0.0` on the host.
+
+Pick the method matching how Ollama runs on your host:
+
+- **systemd** (most Linux installs):
+  ```bash
+  sudo mkdir -p /etc/systemd/system/ollama.service.d
+  sudo tee /etc/systemd/system/ollama.service.d/override.conf >/dev/null <<'EOF'
+  [Service]
+  Environment="OLLAMA_HOST=0.0.0.0:11434"
+  EOF
+  sudo systemctl daemon-reload
+  sudo systemctl restart ollama
+  ```
+- **manual foreground:** `OLLAMA_HOST=0.0.0.0:11434 ollama serve`
+- **docker:** `-p 0.0.0.0:11434:11434` and `-e OLLAMA_HOST=0.0.0.0`
+- **snap:** `sudo snap set ollama host=0.0.0.0:11434`
+
+Confirm the bind before opening the devcontainer:
+
+```bash
+ss -tlnp | grep 11434   # expect 0.0.0.0:11434 (or *:11434), not 127.0.0.1:11434
+```
+
+> **⚠️ Security disclaimer — you accept this risk.**
+> Binding `0.0.0.0` exposes Ollama on **every** host interface, including your
+> LAN/Wi-Fi IP. **Ollama has no authentication** — anyone who can route to your
+> host on tcp/11434 can run models and consume your GPU/CPU. This is safe only on
+> a **trusted network you control**. On public, office, or shared Wi-Fi, do not
+> use `0.0.0.0`; instead bind the container gateway address only, or firewall
+> tcp/11434 to the container subnet. If you do not accept this exposure, set
+> `LOCAL_MODEL_ENABLED=false` in `.env` and routing falls back to Claude.
+
 ### Claude Credential Prerequisite
 
 Claude auth is stored in a mounted user config volume and persists across container restarts.
@@ -240,7 +278,7 @@ a team without agents stepping on each other. It is entirely `gh`-CLI driven:
 **no API keys, no secrets, no Claude-in-CI**. Claude acts through your
 interactive session and `gh`.
 
-- Columns: `Backlog → Ready → In Progress → In Review → Done`.
+- Columns: `Backlog → Todo → Ready → In Progress → In Review → Done`.
 - Fields: **BMAD Stage** and **Route** (Human / Claude / Local, derived from
   `scripts/route-model.sh` via `scripts/suggest-route.sh`).
 - Coordination: a collision-safe **claim protocol** (`scripts/board.sh claim` —
