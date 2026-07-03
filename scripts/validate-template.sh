@@ -36,6 +36,8 @@ for f in \
     .github/workflows/semgrep.yml \
     .github/workflows/container-scan.yml \
     .github/workflows/repository-audit.yml \
+    .github/workflows/template-sync.yml \
+    .templatesyncignore \
     .github/dependabot.yml \
     .github/pull_request_template.md \
     .devcontainer/devcontainer.json \
@@ -69,6 +71,7 @@ for f in \
     scripts/install-bmad.sh \
     scripts/install-caveman.sh \
     scripts/install-claude-plugins.sh \
+    scripts/adopt-template-sync.sh \
     scripts/ci/README.md; do
     if [[ -f "$f" ]]; then
         check "$f" "pass"
