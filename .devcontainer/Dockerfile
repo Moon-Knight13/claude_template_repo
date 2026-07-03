@@ -64,8 +64,8 @@ ENV DEVCONTAINER=true
 # /home/node/.config/gh must exist node-owned in the image so the gh-config
 # named volume inherits that ownership on first mount (gh stores its browser
 # OAuth token there — never in env vars or repo files).
-RUN mkdir -p /workspace /home/node/.claude /home/node/.config/gh && \
-  chown -R node:node /workspace /home/node/.claude /home/node/.config
+RUN mkdir -p /workspace /home/node/.claude /home/node/.config/gh /home/node/.npm-global && \
+  chown -R node:node /workspace /home/node/.claude /home/node/.config /home/node/.npm-global
 
 WORKDIR /workspace
 
@@ -112,8 +112,11 @@ COPY --from=gitleaks-build /go/bin/gitleaks /usr/local/bin/gitleaks
 USER node
 
 # Install global packages
-ENV NPM_CONFIG_PREFIX=/usr/local/share/npm-global
-ENV PATH=$PATH:/usr/local/share/npm-global/bin
+# The npm prefix lives under /home/node so it survives devcontainer uid
+# remapping (updateRemoteUserUID re-chowns the home dir only) — required for
+# Claude Code auto-update to work at runtime without sudo.
+ENV NPM_CONFIG_PREFIX=/home/node/.npm-global
+ENV PATH=$PATH:/home/node/.npm-global/bin
 
 # Set the default shell to zsh rather than sh
 ENV SHELL=/bin/zsh

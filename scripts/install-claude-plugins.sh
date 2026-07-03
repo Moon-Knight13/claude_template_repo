@@ -10,7 +10,6 @@ plugins=(
   frontend-design@claude-plugins-official
   code-review@claude-plugins-official
   superpowers@claude-plugins-official
-  github@claude-plugins-official
   commit-commands@claude-plugins-official
 )
 
