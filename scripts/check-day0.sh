@@ -27,24 +27,10 @@ echo "======================"
 
 # Day-0 checks target repos *derived* from this template; the pristine template
 # itself fails them by design (placeholder CODEOWNERS, no .env, no markers).
-# Detect the template repo and skip early. DAY0_FORCE_FULL=1 overrides.
-is_template_repo() {
-    [[ "${DAY0_FORCE_FULL:-0}" == "1" ]] && return 1
-
-    # Preferred: ask GitHub — authoritative when reachable.
-    local is_template
-    is_template=$(gh repo view --json isTemplate --jq '.isTemplate' 2>/dev/null || echo "")
-    [[ "$is_template" == "true" ]] && return 0
-    [[ "$is_template" == "false" ]] && return 1
-
-    # Offline fallback: require BOTH the placeholder CODEOWNERS and the
-    # template's own origin URL, so derived repos always get the full check.
-    if [[ -f ".github/CODEOWNERS" ]] && grep -q "@your-org/your-team" .github/CODEOWNERS \
-        && git remote get-url origin 2>/dev/null | grep -q "Moon-Knight13/claude_template_repo"; then
-        return 0
-    fi
-    return 1
-}
+# is_template_repo() lives in the shared helper so setup-day0.sh reuses it.
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/lib/template-detect.sh
+source "$_SCRIPT_DIR/lib/template-detect.sh"
 
 if is_template_repo; then
     echo "  --  This is the template repo itself — day-0 checks are not applicable."
