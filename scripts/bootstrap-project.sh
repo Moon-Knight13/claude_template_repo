@@ -169,19 +169,32 @@ ensure_single_select "BMAD Stage" "${BMAD_OPTIONS[@]}"
 ensure_single_select "Route" "${ROUTE_OPTIONS[@]}"
 
 # --- Link board to repo ---------------------------------------------------------
-# Surface the real outcome instead of swallowing stderr: an already-linked board is
-# benign, but a permission/scope failure must not masquerade as success.
-# gh resolves --repo against the literal --owner value, so "@me" produces the
-# bogus repo "@me/<repo>". Pass the real login and the BARE repo name, matching
-# gh's own example (`--owner monalisa --repo my_repo`).
-if link_out="$(gh project link "$PROJECT_NUMBER" --owner "$OWNER_LOGIN" --repo "$REPO" 2>&1)"; then
-  echo "Linked board to $OWNER_REPO."
-elif printf '%s' "$link_out" | grep -qi "already"; then
-  echo "Board already linked to $OWNER_REPO."
+# `gh project link` ties the repo owner to the PROJECT owner — it builds the
+# repo-to-link reference as <project-owner>/<repo> and rejects a mismatched
+# --owner — so it cannot link this personal (@me) board to an organization-owned
+# repo. Link via the owner-agnostic GraphQL mutation instead: resolve the repo's
+# node id, then linkProjectV2ToRepository against the board's PROJECT_ID. This
+# works for personal and org-owned repos alike (subject to the caller's repo
+# permissions) and is idempotent. Surface the real outcome: an already-linked
+# board is benign, but a permission/scope failure must not masquerade as success.
+repo_owner="${OWNER_REPO%/*}"
+if repo_id="$(gh api graphql -f query='
+    query($owner:String!,$name:String!){repository(owner:$owner,name:$name){id}}
+  ' -f owner="$repo_owner" -f name="$REPO" --jq '.data.repository.id' 2>&1)" && [[ -n "$repo_id" && "$repo_id" != "null" ]]; then
+  if link_out="$(gh api graphql -f query='
+      mutation($projectId:ID!,$repositoryId:ID!){
+        linkProjectV2ToRepository(input:{projectId:$projectId,repositoryId:$repositoryId}){repository{id}}
+      }' -f projectId="$PROJECT_ID" -f repositoryId="$repo_id" 2>&1)"; then
+    echo "Linked board to $OWNER_REPO."
+  elif printf '%s' "$link_out" | grep -qi "already"; then
+    echo "Board already linked to $OWNER_REPO."
+  else
+    echo "WARNING: failed to link board to $OWNER_REPO — confirm you have write access to the repo, then re-run:" >&2
+    printf '%s\n' "$link_out" >&2
+  fi
 else
-  echo "WARNING: failed to link board to $OWNER_REPO — fix and re-run, or link manually:" >&2
-  printf '  gh project link %s --owner %s --repo %s\n' "$PROJECT_NUMBER" "$OWNER_LOGIN" "$REPO" >&2
-  printf '%s\n' "$link_out" >&2
+  echo "WARNING: could not resolve the node id for $OWNER_REPO; board not linked:" >&2
+  printf '%s\n' "$repo_id" >&2
 fi
 
 # --- Coordination labels --------------------------------------------------------
