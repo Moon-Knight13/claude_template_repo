@@ -15,8 +15,10 @@ IFS=$'\n\t'
 #   - linear history; no force-pushes, deletions, or direct pushes to the branch
 #
 # Also applies repo-level settings: merge hygiene (squash/rebase only,
-# auto-delete branches) and "Allow GitHub Actions to create and approve pull
-# requests" (needed by the template-sync workflow).
+# auto-delete branches). "Allow GitHub Actions to create and approve pull
+# requests" is OPT-IN (default OFF) since it can bypass human PR review; enable
+# it with ALLOW_ACTIONS_PR_APPROVAL=true when the template-sync workflow (or
+# other PR-creating automation) needs bot approval.
 #
 # Safe by default: dry-run unless APPLY=true, targets the default branch (or the
 # BRANCH override, once REQUIRE_DEFAULT_BRANCH=false unlocks it), and refuses to
@@ -36,6 +38,9 @@ IFS=$'\n\t'
 #                              everyone, matching the prior enforce_admins:true
 #                              posture; set true for a solo repo needing a break-glass)
 #   REQUIRE_DEFAULT_BRANCH=true  refuse to target a non-default branch
+#   ALLOW_ACTIONS_PR_APPROVAL=true  let GitHub Actions approve PRs (default:
+#                              false — off to keep human-in-the-loop review;
+#                              needed only by bot-approval automation)
 
 RULESET_NAME="${RULESET_NAME:-Main_Branch_Protections}"
 BRANCH="${BRANCH:-main}"
@@ -163,7 +168,11 @@ else
 fi
 echo "Required checks: $CHECKS_RAW"
 echo "Approvals:       $REQUIRED_APPROVALS  Code-owner review: $REQUIRE_CODEOWNERS  Admin bypass: $ADMIN_BYPASS"
-echo "Actions PRs:     allow GitHub Actions to create and approve pull requests"
+if [[ "${ALLOW_ACTIONS_PR_APPROVAL:-false}" == "true" ]]; then
+  echo "Actions PRs:     allow GitHub Actions to create and approve pull requests"
+else
+  echo "Actions PRs:     unchanged (human-in-the-loop; set ALLOW_ACTIONS_PR_APPROVAL=true to enable)"
+fi
 echo "Apply mode:      $APPLY"
 
 if [[ "$APPLY" != "true" ]]; then
@@ -209,15 +218,31 @@ gh api \
   -f allow_squash_merge=true \
   -f delete_branch_on_merge=true >/dev/null
 
-# Allow GitHub Actions to create and approve pull requests — required by the
-# template-sync workflow (and any other PR-creating automation). This endpoint
-# only accepts PUT (PATCH 404s); the body is partial, so the repo's
-# default_workflow_permissions is kept.
-gh api \
-  --method PUT \
-  -H "Accept: application/vnd.github+json" \
-  "repos/$OWNER/$REPO/actions/permissions/workflow" \
-  -F can_approve_pull_request_reviews=true >/dev/null
+# Allow GitHub Actions to create and approve pull requests. OPT-IN, default OFF:
+# letting Actions approve PRs can bypass the human-in-the-loop review gate on
+# main, so we do NOT enable it automatically. Set ALLOW_ACTIONS_PR_APPROVAL=true
+# to opt in (e.g. for repos whose template-sync flow relies on bot approval).
+# This endpoint only accepts PUT (PATCH 404s); the body is partial, so the
+# repo's default_workflow_permissions is kept. Tolerate only a policy-lock
+# 404 (the field is already enforced at the account level); any other failure
+# (403/auth/missing scope/network) is real and must abort, not be swallowed.
+if [[ "${ALLOW_ACTIONS_PR_APPROVAL:-false}" == "true" ]]; then
+  if ! PATCH_ERR="$(gh api \
+    --method PUT \
+    -H "Accept: application/vnd.github+json" \
+    "repos/$OWNER/$REPO/actions/permissions/workflow" \
+    -F can_approve_pull_request_reviews=true 2>&1 >/dev/null)"; then
+    if grep -q "HTTP 404" <<<"$PATCH_ERR"; then
+      echo "NOTE: can_approve_pull_request_reviews not settable via API (account policy-lock, HTTP 404); already enforced at account level. Continuing."
+    else
+      echo "ERROR: failed to set can_approve_pull_request_reviews:" >&2
+      echo "$PATCH_ERR" >&2
+      exit 1
+    fi
+  fi
+else
+  echo "Actions PR-approval left untouched (human-in-the-loop). Set ALLOW_ACTIONS_PR_APPROVAL=true to opt in."
+fi
 
 mkdir -p .ai && touch .ai/bootstrap-completed
 echo "Bootstrap applied successfully."
