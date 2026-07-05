@@ -16,6 +16,24 @@ A language-agnostic, production-ready template for Claude-first development. Pro
 - **Branch protection bootstrap** — one-command GitHub branch protection with required status checks
 - **Day-0 validation** — `/day0-check` walks you through every setup step with pass/fail output and remediation hints
 
+## How it works
+
+Work comes in as a board card, gets **routed** by risk — to a human, to Claude, or to a
+cheaper local model — and every change runs the same security gates before it merges. The
+whole loop runs inside a devcontainer whose network is deny-by-default.
+
+📊 **[Open the visual overview →](docs/explainer/index.html)** — a one-page briefing (for
+technical and non-technical readers) covering the devcontainer, the two engines, caveman
+token compression, and the CI gates. Self-contained HTML; open it locally or host it via
+GitHub Pages.
+
+- **Routing** derives from `scripts/route-model.sh`; the same Human/Claude/Local decision
+  shows up as the **Route** field on each board card.
+- **Gates are required, not advisory** — a red check blocks the merge (see
+  [`.github/workflows/`](.github/workflows/)).
+- **Caveman** trims Claude's prose to cut output tokens and surfaces a live per-session
+  token/cost tally in the statusline (see [docs/TEMPLATE_GUIDE.md](docs/TEMPLATE_GUIDE.md)).
+
 ## Prerequisites
 
 - Docker + VS Code Dev Containers extension
