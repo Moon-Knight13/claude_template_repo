@@ -60,6 +60,10 @@ Work is tracked on a per-repo GitHub Project board (see `docs/KANBAN_WORKFLOW.md
 - Keep Claude auth in mounted user config outside workspace files.
 - Run quality checks before merge: pre-commit, semgrep, gitleaks, CI checks.
 - Respect repository protections and required checks.
+- Keep `docs/explainer/index.html` in sync with `README.md` and `docs/`. It is a
+  hand-authored visual briefing (the README is the source of truth); when the
+  architecture, routing, security gates, or component set change, update the explainer in
+  the same PR. It is self-contained — no external requests, works offline and via Pages.
 
 ## Style
 Default response style should be concise and precise.

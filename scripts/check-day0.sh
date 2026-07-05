@@ -206,6 +206,21 @@ else
     echo "  --  Ollama check skipped (LOCAL_MODEL_ENABLED=false)"
 fi
 
+# 12. Visual explainer via GitHub Pages (optional — a WARN, never a FAIL). Only
+# meaningful when the explainer is present; publishing is opt-in because Pages
+# serves the page publicly.
+if [[ -f docs/explainer/index.html ]]; then
+    if ! gh auth status >/dev/null 2>&1; then
+        check "Explainer published via GitHub Pages" "skip" "gh not authenticated"
+    elif _slug="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null)" \
+        && gh api "repos/${_slug}/pages" >/dev/null 2>&1; then
+        check "Explainer published via GitHub Pages" "pass" ""
+    else
+        check "Explainer published via GitHub Pages" "warn" \
+            "Optional. docs/explainer/index.html is present but Pages is off, so the README link only opens locally. Enable at Settings -> Pages -> Source: 'GitHub Actions' (the 'pages' workflow then publishes it). Leave off if the page shouldn't be public."
+    fi
+fi
+
 echo ""
 echo "Results: ${PASS} ok, ${FAIL} failed, ${SKIP} skipped, ${WARN} warnings"
 

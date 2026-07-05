@@ -16,6 +16,24 @@ A language-agnostic, production-ready template for Claude-first development. Pro
 - **Branch protection bootstrap** — one-command GitHub branch protection with required status checks
 - **Day-0 validation** — `/day0-check` walks you through every setup step with pass/fail output and remediation hints
 
+## How it works
+
+Work comes in as a board card, gets **routed** by risk — to a human, to Claude, or to a
+cheaper local model — and every change runs the same security gates before it merges. The
+whole loop runs inside a devcontainer whose network is deny-by-default.
+
+📊 **[Open the visual overview →](docs/explainer/index.html)** — a one-page briefing (for
+technical and non-technical readers) covering the devcontainer, the two engines, caveman
+token compression, and the CI gates. Self-contained HTML; open it locally or host it via
+GitHub Pages.
+
+- **Routing** derives from `scripts/route-model.sh`; the same Human/Claude/Local decision
+  shows up as the **Route** field on each board card.
+- **Gates are required, not advisory** — a red check blocks the merge (see
+  [`.github/workflows/`](.github/workflows/)).
+- **Caveman** trims Claude's prose to cut output tokens and surfaces a live per-session
+  token/cost tally in the statusline (see [docs/TEMPLATE_GUIDE.md](docs/TEMPLATE_GUIDE.md)).
+
 ## Prerequisites
 
 - Docker + VS Code Dev Containers extension
@@ -64,6 +82,7 @@ When you start a new project from this template:
 1. Replace this `README.md` with your project README — use [`docs/README.template.md`](docs/README.template.md) as a starting point.
 2. Add `scripts/ci/lint-*.sh` and `scripts/ci/test-*.sh` for your language stack (see `scripts/ci/README.md`).
 3. Do the two day-0 logins (quick start step 3) — `scripts/setup-day0.sh` then fills CODEOWNERS, copies configs, applies branch protection, and creates the Kanban board (see [docs/KANBAN_WORKFLOW.md](docs/KANBAN_WORKFLOW.md)).
+4. Replace or remove `docs/explainer/` — it describes *this template*, not your project. If you keep a project explainer there, enable GitHub Pages to serve it (**Settings → Pages → Source: "GitHub Actions"**); the `pages` workflow publishes it on the next push. Leave Pages disabled if the page shouldn't be public.
 
 ## License
 
