@@ -1,9 +1,8 @@
 # Claude Secure Template
 
-[![ci](https://github.com/Moon-Knight13/claude_template_repo/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/Moon-Knight13/foundryvtt-docker/actions/workflows/ci.yml)
-[![semgrep](https://github.com/Moon-Knight13/claude_template_repo//actions/workflows/semgrep.yml/badge.svg?branch=develop)](https://github.com/Moon-Knight13/foundryvtt-docker/actions/workflows/semgrep.yml)
-[![secret-scan](https://github.com/Moon-Knight13/claude_template_repo//actions/workflows/secret-scan.yml/badge.svg?branch=develop)](https://github.com/Moon-Knight13/foundryvtt-docker/actions/workflows/secret-scan.yml)
-[![CodeQL](https://github.com/Moon-Knight13/claude_template_repo//actions/workflows/codeql-analysis.yml/badge.svg?branch=develop)](https://github.com/Moon-Knight13/foundryvtt-docker/actions/workflows/codeql-analysis.yml)
+[![ci](https://github.com/Moon-Knight13/claude_template_repo/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Moon-Knight13/claude_template_repo/actions/workflows/ci.yml)
+[![semgrep](https://github.com/Moon-Knight13/claude_template_repo/actions/workflows/semgrep.yml/badge.svg?branch=main)](https://github.com/Moon-Knight13/claude_template_repo/actions/workflows/semgrep.yml)
+[![secret-scan](https://github.com/Moon-Knight13/claude_template_repo/actions/workflows/secret-scan.yml/badge.svg?branch=main)](https://github.com/Moon-Knight13/claude_template_repo/actions/workflows/secret-scan.yml)
 
 A language-agnostic, production-ready template for Claude-first development. Provides secure defaults, AI task routing, BMAD workflow integration, and deterministic CI gates so you can focus on your project rather than its scaffolding.
 
