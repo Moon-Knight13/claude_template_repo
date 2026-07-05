@@ -15,6 +15,8 @@
 set -euo pipefail
 IFS=$'\n\t'
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 APPLY="${APPLY:-false}"
 PROJECT_ENV="${PROJECT_ENV:-.ai/project.env}"
 MARKER="${PROJECT_MARKER:-.ai/project-bootstrap-completed}"
@@ -113,17 +115,30 @@ ensure_single_select() {
     return
   fi
 
-  # Desired option names as a JSON array.
+  # Desired option names as a JSON array (single jq process).
   local wanted_json
-  wanted_json="$(printf '%s\n' "$@" | jq -R . | jq -s .)"
+  wanted_json="$(printf '%s\n' "$@" | jq -Rn '[inputs]')"
+
+  # Compute the desired ordered option set ONCE — single source of truth for both
+  # the skip-check and the mutation payload. Wanted options come first in canonical
+  # order (reusing each existing option's id/color/description by first name match),
+  # then any remaining existing options preserved BY ID so duplicate names are never
+  # dropped (which would detach their cards). See scripts/lib/reconcile-options.jq.
+  #
+  # Idempotency: after one reconcile the field order becomes [wanted...]+[extras...],
+  # so subsequent runs hit the skip-check and no-op. Residual risk: if the API
+  # renormalizes option order after we set it (e.g. pins a built-in option),
+  # target_order never equals current_order and the mutation re-fires every run.
+  # That is a benign no-op mutation, not data loss, and is not cheaply detectable
+  # client-side; revisit only if observed against the live API.
+  local ordered
+  ordered="$(jq -c -n --argjson existing "$existing" --argjson wanted "$wanted_json" \
+    -f "$SCRIPT_DIR/lib/reconcile-options.jq")"
 
   # Skip the mutation when the field already has exactly the wanted options in the
-  # wanted order (wanted first, then any extras). Newline-join is safe: option
-  # names are single-line.
+  # wanted order (wanted first, then extras). Newline-join is safe: names are single-line.
   local target_order current_order
-  target_order="$(jq -r --argjson w "$wanted_json" '
-    ([ $w[] ] + [ .[].name | select(. as $n | ($w | index($n)) | not) ]) | join("\n")
-  ' <<<"$existing")"
+  target_order="$(jq -r '[ .[].name ] | join("\n")' <<<"$ordered")"
   current_order="$(jq -r '[ .[].name ] | join("\n")' <<<"$existing")"
   if [[ "$target_order" == "$current_order" ]]; then
     echo "Field '$name' already has the required options in order."
@@ -131,22 +146,19 @@ ensure_single_select() {
   fi
   echo "Reconciling field '$name' options to desired order."
 
-  # Build the GraphQL singleSelectOptions literal in target order: reuse id+color
-  # for names that already exist; assign a cycling color to newly-created ones.
+  # Build the GraphQL singleSelectOptions literal from the ordered set. jq @json
+  # correctly escapes name/description (backslashes, quotes, control chars); color
+  # is a GraphQL enum, emitted unquoted.
   local combined
-  combined="$(jq -rn --argjson existing "$existing" --argjson wanted "$wanted_json" '
-    def colors: ["GRAY","BLUE","GREEN","YELLOW","ORANGE","RED","PURPLE","PINK"];
-    def esc: gsub("\""; "\\\"");
-    ($existing | map({(.name): .}) | add // {}) as $byname
-    | ([ $wanted[] | $byname[.] // {name: ., new: true} ]
-       + [ $existing[] | select(.name as $n | ($wanted | index($n)) | not) ]) as $opts
-    | [ $opts | to_entries[]
-        | .key as $i | .value as $o
-        | ( if $o.id then "id:\"\($o.id)\"," else "" end ) as $idp
-        | ( $o.color // (colors[$i % (colors|length)]) ) as $col
-        | "{\($idp)name:\"\($o.name|esc)\",color:\($col),description:\"\($o.description // "" | esc)\"}"
-      ] | "[" + join(",") + "]"
-  ')"
+  combined="$(jq -r '
+    map("{"
+        + (if .id then "id:" + (.id | @json) + "," else "" end)
+        + "name:" + (.name | @json)
+        + ",color:" + .color
+        + ",description:" + (.description | @json)
+        + "}")
+    | "[" + join(",") + "]"
+  ' <<<"$ordered")"
   gh api graphql -f query="mutation{updateProjectV2Field(input:{fieldId:\"$fid\",singleSelectOptions:$combined}){projectV2Field{... on ProjectV2SingleSelectField{id}}}}" >/dev/null \
     || echo "  WARN: could not update '$name' options automatically; set them in the board UI: ${*}" >&2
 }
@@ -157,19 +169,34 @@ ensure_single_select "BMAD Stage" "${BMAD_OPTIONS[@]}"
 ensure_single_select "Route" "${ROUTE_OPTIONS[@]}"
 
 # --- Link board to repo ---------------------------------------------------------
-# Surface the real outcome instead of swallowing stderr: an already-linked board is
-# benign, but a permission/scope failure must not masquerade as success.
-# gh resolves --repo against the literal --owner value, so "@me" produces the
-# bogus repo "@me/<repo>". Pass the real login and the BARE repo name, matching
-# gh's own example (`--owner monalisa --repo my_repo`).
-if link_out="$(gh project link "$PROJECT_NUMBER" --owner "$OWNER_LOGIN" --repo "$REPO" 2>&1)"; then
-  echo "Linked board to $OWNER_REPO."
-elif printf '%s' "$link_out" | grep -qi "already"; then
-  echo "Board already linked to $OWNER_REPO."
+# `gh project link` ties the repo owner to the PROJECT owner — it builds the
+# repo-to-link reference as <project-owner>/<repo> and rejects a mismatched
+# --owner — so it cannot link this personal (@me) board to an organization-owned
+# repo. Link via the owner-agnostic GraphQL mutation instead: resolve the repo's
+# node id, then linkProjectV2ToRepository against the board's PROJECT_ID. This
+# works for personal and org-owned repos alike (subject to the caller's repo
+# permissions) and is idempotent. Surface the real outcome: an already-linked
+# board is benign, but a permission/scope failure must not masquerade as success.
+repo_owner="${OWNER_REPO%/*}"
+# shellcheck disable=SC2016  # $owner/$name are GraphQL variables, intentionally literal
+if repo_id="$(gh api graphql -f query='
+    query($owner:String!,$name:String!){repository(owner:$owner,name:$name){id}}
+  ' -f owner="$repo_owner" -f name="$REPO" --jq '.data.repository.id' 2>&1)" && [[ -n "$repo_id" && "$repo_id" != "null" ]]; then
+  # shellcheck disable=SC2016  # $projectId/$repositoryId are GraphQL variables, intentionally literal
+  if link_out="$(gh api graphql -f query='
+      mutation($projectId:ID!,$repositoryId:ID!){
+        linkProjectV2ToRepository(input:{projectId:$projectId,repositoryId:$repositoryId}){repository{id}}
+      }' -f projectId="$PROJECT_ID" -f repositoryId="$repo_id" 2>&1)"; then
+    echo "Linked board to $OWNER_REPO."
+  elif printf '%s' "$link_out" | grep -qi "already"; then
+    echo "Board already linked to $OWNER_REPO."
+  else
+    echo "WARNING: failed to link board to $OWNER_REPO — confirm you have write access to the repo, then re-run:" >&2
+    printf '%s\n' "$link_out" >&2
+  fi
 else
-  echo "WARNING: failed to link board to $OWNER_REPO — fix and re-run, or link manually:" >&2
-  printf '  gh project link %s --owner %s --repo %s\n' "$PROJECT_NUMBER" "$OWNER_LOGIN" "$REPO" >&2
-  printf '%s\n' "$link_out" >&2
+  echo "WARNING: could not resolve the node id for $OWNER_REPO; board not linked:" >&2
+  printf '%s\n' "$repo_id" >&2
 fi
 
 # --- Coordination labels --------------------------------------------------------
