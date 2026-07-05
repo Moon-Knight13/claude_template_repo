@@ -178,9 +178,11 @@ ensure_single_select "Route" "${ROUTE_OPTIONS[@]}"
 # permissions) and is idempotent. Surface the real outcome: an already-linked
 # board is benign, but a permission/scope failure must not masquerade as success.
 repo_owner="${OWNER_REPO%/*}"
+# shellcheck disable=SC2016  # $owner/$name are GraphQL variables, intentionally literal
 if repo_id="$(gh api graphql -f query='
     query($owner:String!,$name:String!){repository(owner:$owner,name:$name){id}}
   ' -f owner="$repo_owner" -f name="$REPO" --jq '.data.repository.id' 2>&1)" && [[ -n "$repo_id" && "$repo_id" != "null" ]]; then
+  # shellcheck disable=SC2016  # $projectId/$repositoryId are GraphQL variables, intentionally literal
   if link_out="$(gh api graphql -f query='
       mutation($projectId:ID!,$repositoryId:ID!){
         linkProjectV2ToRepository(input:{projectId:$projectId,repositoryId:$repositoryId}){repository{id}}
