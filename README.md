@@ -22,10 +22,11 @@ Work comes in as a board card, gets **routed** by risk — to a human, to Claude
 cheaper local model — and every change runs the same security gates before it merges. The
 whole loop runs inside a devcontainer whose network is deny-by-default.
 
-📊 **[Open the visual overview →](docs/explainer/index.html)** — a one-page briefing (for
-technical and non-technical readers) covering the devcontainer, the two engines, caveman
-token compression, and the CI gates. Self-contained HTML; open it locally or host it via
-GitHub Pages.
+📊 **[Open the visual overview →](https://moon-knight13.github.io/claude_template_repo/)** —
+a one-page briefing (for technical and non-technical readers) covering the devcontainer, the
+two engines, caveman token compression, and the CI gates. Served from
+[`docs/explainer/`](docs/explainer/index.html) via GitHub Pages; the page is self-contained,
+so you can also open the HTML locally.
 
 - **Routing** derives from `scripts/route-model.sh`; the same Human/Claude/Local decision
   shows up as the **Route** field on each board card.
