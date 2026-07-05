@@ -105,12 +105,16 @@ rules:
     languages: [python, javascript, typescript]
     message: "Hardcoded real email address in source. Use an env variable or test@example.com placeholder."
     severity: WARNING
-    pattern-either:
-      - pattern: '"$EMAIL"'
-      - pattern: "'$EMAIL'"
-    metavariable-regex:
-      metavariable: $EMAIL
-      regex: '[a-zA-Z0-9._%+\-]{2,}@(?!example\.|test\.|localhost)[a-zA-Z0-9.\-]{2,}\.[a-zA-Z]{2,}'
+    # metavariable-regex only applies when nested with the pattern inside a
+    # patterns: block; as a sibling of pattern-either it is silently ignored
+    # and the rule matches every string literal.
+    patterns:
+      - pattern-either:
+          - pattern: '"$EMAIL"'
+          - pattern: "'$EMAIL'"
+      - metavariable-regex:
+          metavariable: $EMAIL
+          regex: '[a-zA-Z0-9._%+\-]{2,}@(?!example\.|test\.|localhost)[a-zA-Z0-9.\-]{2,}\.[a-zA-Z]{2,}'
     metadata:
       atlas_technique: "AML.T0040"
       severity: "WARNING"
@@ -129,16 +133,18 @@ rules:
     languages: [python, javascript, typescript]
     message: "PII-named variable passed to a logging function. Redact or hash before logging."
     severity: WARNING
-    pattern-either:
-      - pattern: console.log(..., $PII, ...)
-      - pattern: console.error(..., $PII, ...)
-      - pattern: console.warn(..., $PII, ...)
-      - pattern: logger.$METHOD(..., $PII, ...)
-      - pattern: logging.$METHOD(..., $PII, ...)
-      - pattern: print(..., $PII, ...)
-    metavariable-regex:
-      metavariable: $PII
-      regex: '.*(email|phone|ssn|credit_card|social_security|date_of_birth|national_insurance|nino|passport).*'
+    # Same nesting requirement as pii-literal-email-in-code above.
+    patterns:
+      - pattern-either:
+          - pattern: console.log(..., $PII, ...)
+          - pattern: console.error(..., $PII, ...)
+          - pattern: console.warn(..., $PII, ...)
+          - pattern: logger.$METHOD(..., $PII, ...)
+          - pattern: logging.$METHOD(..., $PII, ...)
+          - pattern: print(..., $PII, ...)
+      - metavariable-regex:
+          metavariable: $PII
+          regex: '.*(email|phone|ssn|credit_card|social_security|date_of_birth|national_insurance|nino|passport).*'
     metadata:
       atlas_technique: "AML.T0040"
       severity: "WARNING"
