@@ -486,10 +486,17 @@ Setup per derived repo (one-time):
 - Enable Settings > Actions > General > Workflow permissions >
   "Allow GitHub Actions to create and approve pull requests".
 - The default `GITHUB_TOKEN` is sufficient until a sync PR needs to change
-  files under `.github/workflows/` — pushing those requires the `workflow`
-  scope. For that, add a fine-grained PAT (contents: write, pull requests:
-  write, workflows: write, scoped to the repo) as the `TEMPLATE_SYNC_TOKEN`
-  secret; the workflow falls back to `GITHUB_TOKEN` when the secret is absent.
+  files under `.github/workflows/`. `GITHUB_TOKEN` can **never** push workflow
+  files — this is a GitHub platform restriction: there is no `workflows:` key
+  for the workflow `permissions:` block, and the repository "Read and write
+  permissions" setting does not lift it either. For that case, add a
+  fine-grained PAT (contents: write, pull requests: write, workflows: write,
+  scoped to the repo) as the `TEMPLATE_SYNC_TOKEN` secret; the workflow falls
+  back to `GITHUB_TOKEN` when the secret is absent. A preflight step in the
+  workflow detects this case and fails fast with these instructions before
+  attempting the sync. If you mint tokens through your own GitHub App instead,
+  the app needs Workflows: Read and write, then reinstall/approve the updated
+  app permissions on the repo.
 
 Repos created before the workflow existed can retrofit it with
 `bash scripts/adopt-template-sync.sh` (fetches the two files from the template
@@ -509,6 +516,7 @@ that needs syncing at all.
 - CI missing script failure: add matching scripts under `scripts/ci` for detected stack.
 - Gitleaks false positive on a test file: add the file path to the rule's `paths` allowlist in `.gitleaks.toml`.
 - Semgrep PII false positive: add the file pattern to the rule's `paths.exclude` list in `.semgrep.yml`.
+- template-sync push rejected with `refusing to allow a GitHub App to create or update workflow '.github/workflows/…' without 'workflows' permission`: the sync includes workflow-file changes and the run used the default `GITHUB_TOKEN`, which can never push those (platform restriction — no `permissions:` entry or repo setting fixes it; beware that `workflows:` is not a valid `permissions:` key and adding it invalidates the workflow file). Add the `TEMPLATE_SYNC_TOKEN` fine-grained PAT secret (Contents, Pull requests, Workflows — read and write) and re-run; see [Template Updates](#template-updates-downstream-sync).
 
 ## FAQ
 
