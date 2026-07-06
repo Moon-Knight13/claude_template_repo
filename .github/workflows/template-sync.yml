@@ -12,10 +12,15 @@ name: template-sync
 #   (i.e. reverts the local edit). Review sync PR diffs for unexpected reverts;
 #   see docs/TEMPLATE_GUIDE.md "Conflict behavior" for the full decision guide.
 # - Token: the default GITHUB_TOKEN is enough until a sync PR needs to change
-#   files under .github/workflows/ — pushing those requires the `workflow`
-#   scope, which GITHUB_TOKEN does not have. For that case, store a fine-grained
-#   PAT (contents: write, pull requests: write, workflows: write on this repo)
-#   as the TEMPLATE_SYNC_TOKEN secret. See docs/TEMPLATE_GUIDE.md
+#   files under .github/workflows/. GITHUB_TOKEN can NEVER push workflow files —
+#   that is a GitHub platform restriction; no `permissions:` entry exists for it
+#   (there is no `workflows:` key) and the repo "Read and write permissions"
+#   setting does not change it. For that case, store a fine-grained PAT
+#   (contents: write, pull requests: write, workflows: write on this repo) as
+#   the TEMPLATE_SYNC_TOKEN secret. The preflight step below fails fast with
+#   this exact instruction instead of letting the push die mid-sync with
+#   "refusing to allow a GitHub App to create or update workflow ... without
+#   `workflows` permission". See docs/TEMPLATE_GUIDE.md
 #   "Template Updates (Downstream Sync)".
 # - Repo setting required once: Settings > Actions > General > Workflow
 #   permissions > "Allow GitHub Actions to create and approve pull requests".
@@ -45,6 +50,33 @@ jobs:
         with:
           # Required by actions-template-sync (see its README, issues #557/#627).
           persist-credentials: false
+
+      # GITHUB_TOKEN cannot push .github/workflows/ changes (platform
+      # restriction). If this sync would include any and TEMPLATE_SYNC_TOKEN is
+      # not configured, fail here with clear instructions instead of failing
+      # mid-push inside the sync action with a cryptic remote error.
+      - name: Preflight — workflow-file changes need TEMPLATE_SYNC_TOKEN
+        env:
+          HAS_SYNC_TOKEN: ${{ secrets.TEMPLATE_SYNC_TOKEN != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$HAS_SYNC_TOKEN" = "true" ]; then
+            echo "TEMPLATE_SYNC_TOKEN is set — workflow-file changes can be pushed."
+            exit 0
+          fi
+          git fetch --quiet --depth 1 https://github.com/Moon-Knight13/claude_template_repo main
+          # A→M from HEAD to the template tree = files the sync would add or
+          # modify under .github/workflows/ (deletions are downstream-only
+          # files, which sync never touches).
+          changed=$(git diff --name-only --diff-filter=AM HEAD FETCH_HEAD -- .github/workflows/)
+          if [ -n "$changed" ]; then
+            echo "This sync includes workflow-file changes:"
+            echo "$changed"
+            echo "::error title=template-sync needs TEMPLATE_SYNC_TOKEN::This sync changes files under .github/workflows/, which the default GITHUB_TOKEN can never push (GitHub platform restriction — no permissions setting changes this). Add a fine-grained PAT secret named TEMPLATE_SYNC_TOKEN with Contents, Pull requests, and Workflows read-write on this repo, then re-run. See docs/TEMPLATE_GUIDE.md 'Template Updates (Downstream Sync)'."
+            exit 1
+          fi
+          echo "No workflow-file changes in this sync — GITHUB_TOKEN is sufficient."
 
       - name: Sync from template
         uses: AndreasAugustin/actions-template-sync@8a0f668b83c32a0f673353086d74f12b8853d4f5 # v2.5.3
