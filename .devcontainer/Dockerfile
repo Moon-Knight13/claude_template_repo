@@ -5,7 +5,7 @@
 # against the Go checksum database (sum.golang.org), which replaces the
 # release-tarball sha256 pin. Revisit pinning a release binary again once
 # upstream ships one built on a fixed Go.
-FROM golang:1.26.4 AS gitleaks-build
+FROM golang:1.26.5 AS gitleaks-build
 ARG GITLEAKS_VERSION=8.30.1
 RUN CGO_ENABLED=0 go install "github.com/zricethezav/gitleaks/v8@v${GITLEAKS_VERSION}"
 
