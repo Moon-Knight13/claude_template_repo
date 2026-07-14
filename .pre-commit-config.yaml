@@ -34,3 +34,16 @@ repos:
         # setuptools removed in v81. Pin a compatible setuptools so the hook's venv
         # works on Python 3.12+ hosts (CI uses the semgrep Docker image, unaffected).
         additional_dependencies: ["setuptools<81"]
+
+  - repo: local
+    hooks:
+      # Fail fast if CODEOWNERS is reset to the template placeholder in a derived
+      # repo. The weekly repository-audit already catches this, but only on its
+      # Monday schedule; this catches a manual edit at commit time. No-op on the
+      # template repo itself (placeholder is intentional there).
+      - id: codeowners-no-placeholder
+        name: CODEOWNERS has no template placeholder owner
+        entry: scripts/check-codeowners.sh
+        language: script
+        files: ^\.github/CODEOWNERS$
+        pass_filenames: false
