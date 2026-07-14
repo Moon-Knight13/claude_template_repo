@@ -44,6 +44,12 @@ jobs:
           done
 
       - name: Validate CODEOWNERS is customized
+        # The template repo itself intentionally ships the placeholder owner
+        # (@your-org/your-team) as the forcing function for consumers; setup-day0.sh
+        # rewrites it from the git remote in derived repos, and CODEOWNERS is in
+        # .templatesyncignore so the placeholder never syncs downstream. Only
+        # enforce customization in derived repos — mirrors the guard in template-sync.yml.
+        if: github.repository != 'Moon-Knight13/claude_template_repo'
         shell: bash
         run: |
           set -euo pipefail
