@@ -63,6 +63,7 @@ for f in \
     scripts/suggest-route.sh \
     scripts/board.sh \
     scripts/check-day0.sh \
+    scripts/check-codeowners.sh \
     scripts/validate-template.sh \
     scripts/bootstrap-github-settings.sh \
     scripts/bootstrap-project.sh \
@@ -183,6 +184,17 @@ if command -v shellcheck &>/dev/null; then
     done < <(find scripts -name "*.sh" -print0)
 else
     echo "  --  shellcheck not installed; skipping (apt-get install shellcheck)"
+fi
+
+# 8. CODEOWNERS placeholder guard (enforced in derived repos; no-op on the
+# template, where the placeholder is the intentional forcing function). Shares
+# scripts/check-codeowners.sh with the pre-commit hook so the two never drift.
+echo ""
+echo "[8] CODEOWNERS owner guard:"
+if _co_out="$(bash scripts/check-codeowners.sh 2>&1)"; then
+    check "CODEOWNERS has no unfilled placeholder owners" "pass"
+else
+    check "CODEOWNERS has no unfilled placeholder owners" "fail" "$_co_out"
 fi
 
 echo ""
