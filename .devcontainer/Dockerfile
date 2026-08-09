@@ -103,9 +103,17 @@ RUN ARCH=$(dpkg --print-architecture) && \
 # Download and SHA256-verify gh. Debian bookworm's apt package is 2.23.0
 # (2023), which predates `gh project` (needs >= 2.31) — the Kanban board
 # scripts (bootstrap-project.sh, board.sh) hard-require it.
-ARG GH_VERSION=2.95.0
-ARG GH_SHA256_AMD64=25d1e4729e8808c9ed3d613e96ebd3f3e44446f2d368c89d878a71a36ddb3d8c
-ARG GH_SHA256_ARM64=d41e0b3b6218e5741c8bb4db39b16e53a59e0e06299a8489bd38f623ef7ebaae
+#
+# GH_VERSION is not tracked by Dependabot (it is an ARG + wget, not a FROM), so
+# it drifts silently and must be bumped by hand. When bumping, check what the
+# release binary was actually compiled with rather than assuming the newest tag
+# is clean — 2.96.0 shipped after 2.95.0 but was still built on the unpatched
+# Go 1.26.4 and carried the same stdlib CVEs:
+#   go.mod at the tag must show `toolchain go1.26.5` or newer, and
+#   `strings gh | grep -m1 '^go1\.'` on the extracted binary must agree.
+ARG GH_VERSION=2.97.0
+ARG GH_SHA256_AMD64=a2c9b8497e1f85b1ad0dfcb78b5a622e098801b8e461e459e88e1ee12f018112
+ARG GH_SHA256_ARM64=73ea440ecad9c9e284429997ee6f93577bc6f7bc6fba357ef62c53ad8fb641a5
 RUN ARCH=$(dpkg --print-architecture) && \
   case "$ARCH" in \
     amd64) EXPECTED_SHA256="$GH_SHA256_AMD64" ;; \
