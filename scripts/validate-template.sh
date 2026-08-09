@@ -88,6 +88,7 @@ require_files core \
     scripts/bootstrap-precommit.sh \
     scripts/install-claude-plugins.sh \
     scripts/lib/subsystems.sh \
+    scripts/project-setup.sh \
     scripts/ci/README.md
 
 echo ""
