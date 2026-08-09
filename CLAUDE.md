@@ -74,3 +74,15 @@ Work is tracked on a per-repo GitHub Project board (see `docs/KANBAN_WORKFLOW.md
 
 ## Style
 Default response style should be concise and precise.
+
+## Project Instructions
+Repository-specific instructions live in `docs/PROJECT.md` when a project has
+them. Read that file as well as this one; this contract governs security,
+routing, and quality gates, while the project file covers what the repository
+actually is and how to operate it.
+
+**Do not append project-specific content to this file.** `CLAUDE.md` is
+template-owned and template-sync merges with `-X theirs`, so anything added
+here is deleted the next time the template changes — including, in at least one
+real case, a project's own security rules. `docs/PROJECT.md` exists only
+downstream, so sync never touches it.
