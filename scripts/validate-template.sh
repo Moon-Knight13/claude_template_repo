@@ -1,10 +1,25 @@
 #!/usr/bin/env bash
 # Self-contained template integrity validator.
 # Run locally or in CI to verify the template is complete and consistent.
+#
+# Checks are tiered. The always-required tier is the security baseline that
+# justifies the template existing at all — devcontainer, secret scanning,
+# semgrep, container scanning, CODEOWNERS, and the sync machinery itself. The
+# optional tiers cover subsystems a derived repository may legitimately not
+# want; each is skipped when it is switched off in template.conf.
+#
+# Before this was tiered, the required-file list was flat, so a derivative that
+# deleted a subsystem it never used went red in CI and could not fix it locally
+# (this validator is template-owned, so the next sync reverted the edit). See
+# docs/TEMPLATE_GUIDE.md, "Optional subsystems".
 set -euo pipefail
+
+# shellcheck source=scripts/lib/subsystems.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/subsystems.sh"
 
 PASS=0
 FAIL=0
+SKIP=0
 
 check() {
     local description="$1"
@@ -20,13 +35,34 @@ check() {
     fi
 }
 
+# require_files <subsystem|core> <file>...
+# "core" is always checked. Anything else is checked only while that subsystem
+# is enabled; when it is off the files are reported as skipped, never as missing.
+require_files() {
+    local subsystem="$1"
+    shift
+    if [[ "$subsystem" != "core" ]] && ! subsystem_enabled "$subsystem"; then
+        echo "  --  ${subsystem} subsystem off in template.conf; skipping $# file(s)"
+        SKIP=$((SKIP + $#))
+        return 0
+    fi
+    local f
+    for f in "$@"; do
+        if [[ -f "$f" ]]; then
+            check "$f" "pass"
+        else
+            check "$f" "fail" "File missing — add it, or switch the ${subsystem} subsystem off in template.conf"
+        fi
+    done
+}
+
 echo "Template Validation"
 echo "==================="
 
 # 1. Required files
 echo ""
-echo "[1] Required files:"
-for f in \
+echo "[1] Required files (always):"
+require_files core \
     README.md SECURITY.md CLAUDE.md LICENSE \
     .gitignore .editorconfig .env.example \
     .gitleaks.toml .semgrep.yml .pre-commit-config.yaml \
@@ -38,48 +74,63 @@ for f in \
     .github/workflows/repository-audit.yml \
     .github/workflows/template-sync.yml \
     .templatesyncignore \
+    template.conf \
     .github/dependabot.yml \
     .github/pull_request_template.md \
     .devcontainer/devcontainer.json \
     .devcontainer/Dockerfile \
     .devcontainer/init-firewall.sh \
     .claude/settings.json.example \
-    .claude/commands/bmad.md \
-    .claude/commands/bmad-to-board.md \
-    .claude/commands/next-issue.md \
-    .claude/commands/run-epic.md \
-    .claude/commands/day0-check.md \
-    .claude/commands/route-task.md \
     .claude/commands/security-audit.md \
-    .github/ISSUE_TEMPLATE/epic.yml \
-    .github/ISSUE_TEMPLATE/user-story.yml \
     docs/TEMPLATE_GUIDE.md \
-    docs/AI_ROUTING_POLICY.md \
-    docs/BMAD_WORKFLOW.md \
-    docs/KANBAN_WORKFLOW.md \
-    docs/README.template.md \
-    scripts/route-model.sh \
-    scripts/ask-local.sh \
-    scripts/suggest-route.sh \
-    scripts/board.sh \
-    scripts/check-day0.sh \
     scripts/check-codeowners.sh \
     scripts/validate-template.sh \
-    scripts/bootstrap-github-settings.sh \
-    scripts/bootstrap-project.sh \
     scripts/bootstrap-precommit.sh \
-    scripts/bootstrap-bmad.sh \
-    scripts/install-bmad.sh \
-    scripts/install-caveman.sh \
     scripts/install-claude-plugins.sh \
-    scripts/adopt-template-sync.sh \
-    scripts/ci/README.md; do
-    if [[ -f "$f" ]]; then
-        check "$f" "pass"
-    else
-        check "$f" "fail" "File missing — add it or update this validator"
-    fi
-done
+    scripts/lib/subsystems.sh \
+    scripts/ci/README.md
+
+echo ""
+echo "[1a] Required files (local-model routing):"
+require_files routing \
+    docs/AI_ROUTING_POLICY.md \
+    .claude/commands/route-task.md \
+    scripts/route-model.sh \
+    scripts/ask-local.sh
+
+echo ""
+echo "[1b] Required files (project board):"
+require_files board \
+    docs/KANBAN_WORKFLOW.md \
+    .claude/commands/next-issue.md \
+    .claude/commands/run-epic.md \
+    .github/ISSUE_TEMPLATE/epic.yml \
+    .github/ISSUE_TEMPLATE/user-story.yml \
+    scripts/board.sh \
+    scripts/suggest-route.sh \
+    scripts/bootstrap-project.sh
+
+echo ""
+echo "[1c] Required files (BMAD):"
+require_files bmad \
+    docs/BMAD_WORKFLOW.md \
+    .claude/commands/bmad.md \
+    .claude/commands/bmad-to-board.md \
+    scripts/install-bmad.sh \
+    scripts/bootstrap-bmad.sh
+
+echo ""
+echo "[1d] Required files (caveman):"
+require_files caveman \
+    scripts/install-caveman.sh
+
+echo ""
+echo "[1e] Required files (day-0 provisioning):"
+require_files day0 \
+    .claude/commands/day0-check.md \
+    scripts/check-day0.sh \
+    scripts/setup-day0.sh \
+    scripts/bootstrap-github-settings.sh
 
 # 2. Script executable permissions
 echo ""
@@ -97,15 +148,13 @@ echo ""
 echo "[3] Git-track check (.claude/ template files):"
 # settings.local.json is intentionally NOT listed here — it is machine-local and
 # gitignored so per-developer permissions don't propagate to derived repos.
-for f in \
-    .claude/commands/bmad.md \
-    .claude/commands/bmad-to-board.md \
-    .claude/commands/next-issue.md \
-    .claude/commands/run-epic.md \
-    .claude/commands/day0-check.md \
-    .claude/commands/route-task.md \
-    .claude/commands/security-audit.md \
-    .claude/settings.json.example; do
+_track_targets=(.claude/commands/security-audit.md .claude/settings.json.example)
+subsystem_enabled bmad && _track_targets+=(.claude/commands/bmad.md .claude/commands/bmad-to-board.md)
+subsystem_enabled board && _track_targets+=(.claude/commands/next-issue.md .claude/commands/run-epic.md)
+subsystem_enabled day0 && _track_targets+=(.claude/commands/day0-check.md)
+subsystem_enabled routing && _track_targets+=(.claude/commands/route-task.md)
+
+for f in "${_track_targets[@]}"; do
     if [[ ! -f "$f" ]]; then
         check "$f is NOT gitignored" "fail" "File doesn't exist — create it first"
         continue
@@ -142,7 +191,6 @@ _placeholder_clean=true
 while IFS= read -r -d '' f; do
     [[ "$f" == "./README.md" ]] && continue
     [[ "$f" == "./.github/CODEOWNERS" ]] && continue
-    [[ "$f" == "./docs/README.template.md" ]] && continue
     if grep -qE '_TODO:|your-org/your-team|<!-- Replace' "$f" 2>/dev/null; then
         check "No placeholder in $f" "fail" "Unexpected template placeholder found — check the file"
         _placeholder_clean=false
@@ -158,12 +206,14 @@ fi
 # 6. devcontainer.json postStartCommand scripts all exist
 echo ""
 echo "[6] devcontainer.json postStartCommand scripts:"
-for script in \
-    scripts/install-caveman.sh \
-    scripts/install-bmad.sh \
-    scripts/bootstrap-bmad.sh \
-    scripts/bootstrap-precommit.sh \
-    scripts/install-claude-plugins.sh; do
+# postStartCommand tolerates a missing script only when its subsystem is off;
+# the scripts it always runs must be present.
+_poststart=(scripts/bootstrap-precommit.sh scripts/install-claude-plugins.sh)
+subsystem_enabled caveman && _poststart+=(scripts/install-caveman.sh)
+subsystem_enabled bmad && _poststart+=(scripts/install-bmad.sh scripts/bootstrap-bmad.sh)
+subsystem_enabled day0 && _poststart+=(scripts/setup-day0.sh)
+
+for script in "${_poststart[@]}"; do
     if [[ -f "$script" ]]; then
         check "$script exists" "pass"
     else
@@ -198,7 +248,11 @@ else
 fi
 
 echo ""
-echo "Results: ${PASS} passed, ${FAIL} failed"
+if [[ $SKIP -gt 0 ]]; then
+    echo "Results: ${PASS} passed, ${FAIL} failed, ${SKIP} skipped (subsystems off in template.conf)"
+else
+    echo "Results: ${PASS} passed, ${FAIL} failed"
+fi
 echo ""
 
 if [[ $FAIL -gt 0 ]]; then
