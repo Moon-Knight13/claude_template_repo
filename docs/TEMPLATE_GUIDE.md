@@ -561,6 +561,48 @@ Repos created before the workflow existed can retrofit it by copying
 `.github/workflows/template-sync.yml` and `.templatesyncignore` from this
 template, then following the token setup above.
 
+### Project-specific container setup — `scripts/project-setup.sh`
+
+Every entry in `devcontainer.json`'s `postStartCommand` is template-owned, so a
+derivative that needs its own start-time setup used to face a bad choice: edit
+`devcontainer.json` downstream and watch the next sync revert it, or add
+`devcontainer.json` to `.templatesyncignore` and sever the channel that carries
+devcontainer **security** fixes. Neither is acceptable, so the chain ends with a
+hook the derivative owns:
+
+```
+… && bash scripts/setup-day0.sh && bash scripts/project-setup.sh
+```
+
+The template ships `scripts/project-setup.sh` as a no-op. To use it:
+
+1. Replace its body with what your project needs at container start.
+2. Add `scripts/project-setup.sh` to `.templatesyncignore`, so sync stops
+   proposing the no-op back. **Only after the file exists locally** — listing a
+   path sync has not yet delivered means it never arrives, and the hook then
+   fails with exit 127.
+
+It runs **last** deliberately: a non-zero exit marks the whole
+`postStartCommand` failed, and putting it last means a broken project hook
+cannot stop the firewall, pre-commit or day-0 steps from having run. Prefer
+exiting 0 and warning unless the failure genuinely warrants a broken container.
+
+Remember egress is deny-by-default (`.devcontainer/init-firewall.sh`).
+`registry.npmjs.org`, `pypi.org` and `files.pythonhosted.org` are reachable;
+anything else has to be added to the allowlist there first.
+
+Worked example — a derivative whose tooling needs Pillow, where putting
+`python3-pil` in the template-owned `Dockerfile` would be reverted by the next
+sync:
+
+```bash
+# scripts/project-setup.sh (downstream copy)
+set -euo pipefail
+if ! python3 -c "import PIL" 2>/dev/null; then
+  pip install --break-system-packages --user Pillow
+fi
+```
+
 Possible future refinements (not implemented): converting the security
 workflows to reusable `workflow_call` workflows referenced by tag, and
 publishing a prebuilt devcontainer image — both would shrink the file surface
