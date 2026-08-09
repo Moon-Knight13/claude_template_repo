@@ -14,7 +14,7 @@
 # docs/TEMPLATE_GUIDE.md, "Optional subsystems".
 set -euo pipefail
 
-# shellcheck source=scripts/lib/subsystems.sh
+# shellcheck source=scripts/lib/subsystems.sh disable=SC1090,SC1091
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/subsystems.sh"
 
 PASS=0
