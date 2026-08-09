@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# shellcheck source=scripts/lib/subsystems.sh disable=SC1090,SC1091
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/subsystems.sh"
+
+# Without this guard the missing-document check below turns a deliberate
+# "this repo does not use BMAD" into a hard failure of postStartCommand.
+if ! subsystem_enabled bmad; then
+  subsystem_skip_notice bmad "BMAD bootstrap"
+  exit 0
+fi
+
 required_file="docs/BMAD_WORKFLOW.md"
 
 if [[ ! -f "$required_file" ]]; then

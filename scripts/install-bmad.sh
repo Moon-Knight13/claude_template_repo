@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# shellcheck source=scripts/lib/subsystems.sh disable=SC1090,SC1091
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/subsystems.sh"
+
+if ! subsystem_enabled bmad; then
+  subsystem_skip_notice bmad "BMAD install"
+  exit 0
+fi
+
 if [[ "${BMAD_ENABLED:-1}" != "1" ]]; then
   echo "BMAD install disabled (BMAD_ENABLED=${BMAD_ENABLED})."
   exit 0

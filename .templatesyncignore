@@ -6,8 +6,13 @@
 # Note: per actions-template-sync, this file itself is not synced — each
 # derived repo owns its copy and may extend it with project-divergent paths.
 
-# Replaced per project (seed lives in docs/README.template.md)
+# Replaced per project
 README.md
+
+# Records which optional subsystems the derived repo uses. Owned downstream —
+# syncing it would overwrite those choices with the template's defaults and
+# silently re-require subsystems the project deliberately declined.
+template.conf
 
 # Customized on day 0 with real owners
 .github/CODEOWNERS
