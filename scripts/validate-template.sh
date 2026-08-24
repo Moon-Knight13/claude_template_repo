@@ -192,6 +192,11 @@ _placeholder_clean=true
 while IFS= read -r -d '' f; do
     [[ "$f" == "./README.md" ]] && continue
     [[ "$f" == "./.github/CODEOWNERS" ]] && continue
+    # The seed README is placeholder-bearing by definition — it exists so a new
+    # project has something to fill in. The template repo itself does not ship
+    # this file, so this gate could only ever fire in derived repos, where it
+    # flagged the seed as an unfilled placeholder on every run.
+    [[ "$f" == "./docs/README.template.md" ]] && continue
     if grep -qE '_TODO:|your-org/your-team|<!-- Replace' "$f" 2>/dev/null; then
         check "No placeholder in $f" "fail" "Unexpected template placeholder found — check the file"
         _placeholder_clean=false
