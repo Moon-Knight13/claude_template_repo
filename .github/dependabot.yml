@@ -25,14 +25,23 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-
-  # Optional language-specific managers can be enabled per derived repo.
-  - package-ecosystem: "pip"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-
-  - package-ecosystem: "npm"
-    directory: "/"
-    schedule:
-      interval: "weekly"
+# Language-specific managers are OFF by default, and must stay that way.
+#
+# Dependabot does not skip an ecosystem whose manifest is missing — it aborts
+# the job with "/package.json not found" and reports a failed run. Neither this
+# template nor any repo derived from it carries a root package.json or
+# requirements.txt, so leaving pip and npm enabled here produced two failed runs
+# a week, in every repo in the fleet, watching nothing.
+#
+# Enable one only in the derived repo, once that repo really has the manifest,
+# and point `directory` at the folder holding it — which is usually not "/".
+#
+#   - package-ecosystem: "npm"
+#     directory: "/scripts/content"     # the folder with package.json in it
+#     schedule:
+#       interval: "weekly"
+#
+#   - package-ecosystem: "pip"
+#     directory: "/"                    # the folder with requirements.txt in it
+#     schedule:
+#       interval: "weekly"
