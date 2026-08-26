@@ -36,7 +36,26 @@ RUN npm install -g "npm@${NPM_VERSION}" && npm --version
 # `apt-get upgrade` pulls patched Debian security packages into the image so the
 # container-scan (Trivy) gate isn't tripped by base-image CVEs that Debian has
 # already fixed. The base digest is pinned and refreshed via Dependabot.
+#
+# bubblewrap is load-bearing, not a convenience. Claude Code's Bash sandbox uses
+# bubblewrap for filesystem and network isolation on Linux and WSL2; without the
+# binary present the sandbox cannot initialise, and every `sandbox.*` key in
+# .claude/settings.json is inert config that silently does nothing. That also
+# means Claude Code's "protected paths" -- the deny-writes list covering
+# .claude/settings*, .claude/hooks, .mcp.json and .git/config, which exists so a
+# running command cannot grant itself permissions mid-run -- do not apply at all.
+# This image shipped without bubblewrap, so the sandbox has never run here.
+#
+# Caveat worth knowing before relying on it: bubblewrap needs unprivileged user
+# namespaces, which are often unavailable inside Docker. Where they are, Claude
+# Code falls back to `enableWeakerNestedSandbox`, which its docs say
+# "considerably weakens security and should only be used when additional
+# isolation is otherwise enforced". That condition does hold here -- this
+# devcontainer plus the deny-by-default firewall IS that outer isolation -- but
+# it is a deliberate trade, not a free win. Run /sandbox to see which mode you
+# actually got. See docs/THREAT_MODEL.md.
 RUN apt-get update && apt-get -y upgrade && apt-get install -y --no-install-recommends \
+  bubblewrap \
   less \
   git \
   python3 \

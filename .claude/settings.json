@@ -30,6 +30,27 @@
     "_no_bash_denies_note": "No Bash deny rules here on purpose. The permissions docs warn that patterns constraining command arguments are fragile — Bash(curl http://github.com/ *) misses -X before the URL, https, -L redirects, variable indirection and extra spaces. A deny list that looks protective but is trivially bypassed is exactly the false assurance this template is trying to stop shipping. Network egress is enforced at the firewall (.devcontainer/init-firewall.sh), which cannot be argued around."
   },
 
+  "sandbox": {
+    "_note": "Requires bubblewrap, added to .devcontainer/Dockerfile alongside this block. Before that, every key here was inert. Enabling the sandbox is also what activates Claude Code's protected paths, which deny a running command writes to .claude/settings*, .claude/hooks, .mcp.json and .git/config so it cannot grant itself permissions mid-run.",
+
+    "_failIfUnavailable_note": "Deliberately NOT set. It would stop Claude Code starting whenever the sandbox cannot initialise — and bubblewrap needs unprivileged user namespaces, which are often unavailable inside Docker. In a file that syncs to every derived repo, that setting would brick Claude Code across the fleet on a host-kernel detail. The cost of leaving it unset is silent degradation to unsandboxed execution, which is precisely the failure mode this template is trying to stop shipping, so scripts/validate-template.sh asserts actual sandbox availability instead of assuming it. Set it to true in managed settings if you control the fleet's kernels.",
+
+    "enabled": true,
+    "allowUnsandboxedCommands": false,
+
+    "credentials": {
+      "_note": "The sandbox's default read policy is the entire filesystem, and there is no built-in credential deny list — only what is named here is restricted. These are the paths devcontainer.json mounts into the container as named volumes, so they sit directly beside the agent.",
+      "files": [
+        { "path": "~/.claude/.credentials.json", "mode": "deny" },
+        { "path": "~/.config/gh", "mode": "deny" },
+        { "path": "~/.ssh", "mode": "deny" },
+        { "path": "~/.aws", "mode": "deny" }
+      ]
+    },
+
+    "_network_note": "No network.allowedDomains list here on purpose. Egress in this devcontainer is already enforced by .devcontainer/init-firewall.sh at the iptables/ipset layer, which is strictly stronger than a per-process allowlist and applies to every binary, not just sandboxed Bash. Duplicating the domain list here would create a second list to keep in sync and a silent drift source between the two. Note the firewall's own limit, documented in docs/THREAT_MODEL.md: it admits the whole GitHub CIDR range, so it bounds WHERE data can go, not WHETHER it leaves."
+  },
+
   "mcpServers": {
     "local-ollama": {
       "command": "npx",
