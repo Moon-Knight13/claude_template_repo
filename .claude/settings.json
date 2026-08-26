@@ -1,0 +1,47 @@
+{
+  "_purpose": "Project-scope Claude Code settings. Committed and template-owned: this file syncs to every derived repo, so it may only contain rules that are correct in EVERY repo the template produces, including the template itself.",
+
+  "permissions": {
+    "_deny_note": "Deny rules are the most durable control Claude Code offers: per the permission-modes docs they 'block in every mode, including bypassPermissions', and no settings scope can remove a deny another scope added. That absoluteness is also the constraint — a deny here cannot be relaxed downstream, so this list holds ONLY credential and key material that no repo ever has cause to read or hand-edit. Protection of the harness's own governing files (.claude/, .devcontainer/, route-model.sh) is deliberately NOT here: /firewall-allow legitimately edits .devcontainer/init-firewall.sh, and the template repo edits all of them as its product. That protection lives in the PreToolUse hook instead, where it can be conditional. See docs/THREAT_MODEL.md.",
+
+    "deny": [
+      "Read(~/.claude/.credentials.json)",
+      "Read(~/.claude.json)",
+      "Read(~/.config/gh/hosts.yml)",
+      "Read(~/.git-credentials)",
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(~/.kube/**)",
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(**/*.pem)",
+      "Read(**/*.key)",
+      "Read(**/*.p12)",
+      "Read(**/*.pfx)",
+      "Read(**/id_rsa)",
+      "Read(**/id_ed25519)",
+      "Edit(~/.claude/**)",
+      "Edit(~/.config/gh/**)",
+      "Edit(~/.ssh/**)",
+      "Edit(.env)",
+      "Edit(.env.*)"
+    ],
+
+    "_no_bash_denies_note": "No Bash deny rules here on purpose. The permissions docs warn that patterns constraining command arguments are fragile — Bash(curl http://github.com/ *) misses -X before the URL, https, -L redirects, variable indirection and extra spaces. A deny list that looks protective but is trivially bypassed is exactly the false assurance this template is trying to stop shipping. Network egress is enforced at the firewall (.devcontainer/init-firewall.sh), which cannot be argued around."
+  },
+
+  "mcpServers": {
+    "local-ollama": {
+      "command": "npx",
+      "args": ["-y", "ollama-mcp-server"],
+      "env": {
+        "OLLAMA_HOST": "http://host.docker.internal:11434",
+        "OLLAMA_MODEL": "qwen2.5-coder:7b"
+      }
+    }
+  },
+
+  "_pii_shield_note": "PII-Shield (gregmos/PII-Shield) anonymizes content before it reaches Claude. It requires a manual per-machine install (Settings > Extensions > drag in the .mcpb file), so it is NOT a control this template ships — treat it as opt-in. See docs/TEMPLATE_GUIDE.md#pii--privacy-controls.",
+
+  "_statusline_note": "The caveman statusline badge is auto-configured by scripts/install-caveman.sh at container start into user-level settings (~/.claude/settings.json), because the plugin script lives at a hash-versioned cache path. Do not hardcode a statusLine here."
+}
