@@ -27,7 +27,33 @@ within a few business days.
 5. Document incident and remediation in project notes.
 
 ## Baseline Security Controls
+
+Protecting the repository:
 - Pre-commit hooks with gitleaks and semgrep.
 - CI secret scan and semgrep workflows.
-- Deny-by-default egress in devcontainer firewall.
 - Local bootstrap script to enforce branch protection and required checks.
+
+Protecting the agent itself (see [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md)):
+- `permissions.deny` rules in `.claude/settings.json` over credential and key
+  material. Deny rules hold in every permission mode, including
+  `bypassPermissions`, and no settings scope can remove one.
+- Bash sandbox with credential deny entries for the mounted credential volumes.
+- A `PreToolUse` guard over the files that govern the agent — `.claude/`,
+  `.devcontainer/`, `CLAUDE.md`, the routing scripts, the gate configs — so a
+  session cannot widen its own boundary in passing.
+- A `PostToolUse` rail that labels issue and PR text as untrusted data, because
+  the board gates cards on metadata while the agent acts on the body.
+- gitleaks run as a file is written, not only at commit time.
+
+Deny-by-default egress in the devcontainer firewall bounds **where** data can go.
+It does not bound **whether** data leaves: the allowlist admits the whole GitHub
+CIDR range, so `git push` is an accepted exfiltration path. The container is a
+host-protection boundary, not a data-containment one.
+
+## Non-Goals
+
+The threat model states these in full. In short: prompt injection is not solved,
+only blast-radius-reduced; TLS is not inspected, so domain fronting is live;
+egress policy is per-container, not per-binary; subagents share the parent
+process and are not a security boundary; and in a single-maintainer repository,
+required review is self-review.

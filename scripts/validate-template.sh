@@ -253,6 +253,120 @@ else
     check "CODEOWNERS has no unfilled placeholder owners" "fail" "$_co_out"
 fi
 
+# 9. Security control assertions.
+#
+# Sections 1-8 verify structure and syntax: files present, YAML parsing, scripts
+# executable, shellcheck clean. Not one of them asserts that a security control
+# actually WORKS. That gap mattered, because README.md presents this script as
+# the template's integrity gate, so a green run reads as "the controls are
+# sound" when it only ever meant "the files are well-formed".
+#
+# The model for this section already existed in the repo: init-firewall.sh ends
+# by asserting example.com is unreachable AND api.github.com is reachable, then
+# exits non-zero. These checks are that shape - each one exercises a control and
+# fails loudly when it does not behave.
+echo ""
+echo "[9] Security control behaviour:"
+
+_settings=".claude/settings.json"
+if [[ ! -f "$_settings" ]]; then
+    check "$_settings exists" "fail" "Committed project settings carry the deny rules and hook wiring"
+elif ! python3 -c "import json,sys; json.load(open('$_settings'))" 2>/dev/null; then
+    check "$_settings is valid JSON" "fail" "Malformed settings are silently ignored by Claude Code"
+else
+    check "$_settings is valid JSON" "pass"
+
+    # Deny rules are the only control documented to hold in every permission
+    # mode, including bypassPermissions. Assert the credential paths are covered
+    # rather than trusting the file looks right.
+    for _needle in '.credentials.json' '.ssh' '.env'; do
+        if python3 -c "
+import json,sys
+d=json.load(open('$_settings'))
+rules=d.get('permissions',{}).get('deny',[])
+sys.exit(0 if any('$_needle' in r for r in rules) else 1)
+" 2>/dev/null; then
+            check "deny rule covers $_needle" "pass"
+        else
+            check "deny rule covers $_needle" "fail" "Add a Read()/Edit() deny rule for $_needle to permissions.deny"
+        fi
+    done
+
+    # A hook wired to a missing or non-executable script fails open and silently.
+    while IFS= read -r _hook; do
+        _hook_path="${_hook/\$\{CLAUDE_PROJECT_DIR\}\//}"
+        if [[ -x "$_hook_path" ]]; then
+            check "hook $_hook_path is executable" "pass"
+        else
+            check "hook $_hook_path is executable" "fail" "Wired in $_settings but missing or not executable - the hook fails open"
+        fi
+    done < <(python3 -c "
+import json
+d=json.load(open('$_settings'))
+for event, groups in d.get('hooks', {}).items():
+    if event.startswith('_'):
+        continue
+    for g in groups:
+        for h in g.get('hooks', []):
+            if h.get('type') == 'command' and h.get('command'):
+                print(h['command'])
+" 2>/dev/null)
+fi
+
+# The harness guard must deny a governing file and stay out of the way for
+# everything else. A guard that denies nothing, or denies everything, is worse
+# than none: the first is theatre, the second gets switched off.
+_guard=".claude/hooks/guard-harness-files.sh"
+if [[ -x "$_guard" ]] && command -v jq &>/dev/null; then
+    # A fall-through emits nothing at all, and jq on empty stdin emits nothing
+    # rather than its // default - so normalise empty to "none" here, or the
+    # no-decision case is indistinguishable from a broken probe.
+    _probe() {
+        local _out
+        _out="$(jq -n --arg p "$PWD/$1" \
+            '{cwd:"'"$PWD"'",hook_event_name:"PreToolUse",tool_name:"Edit",tool_input:{file_path:$p}}' \
+            | CLAUDE_PROJECT_DIR="$PWD" bash "$_guard" 2>/dev/null \
+            | jq -r '.hookSpecificOutput.permissionDecision // "none"' 2>/dev/null)"
+        echo "${_out:-none}"
+    }
+    if [[ "$(_probe CLAUDE.md)" == "deny" ]]; then
+        check "harness guard denies edits to CLAUDE.md" "pass"
+    else
+        check "harness guard denies edits to CLAUDE.md" "fail" "The guard is wired but not blocking - a session can rewrite its own rules"
+    fi
+    if [[ "$(_probe README.md)" == "none" ]]; then
+        check "harness guard leaves ordinary files alone" "pass"
+    else
+        check "harness guard leaves ordinary files alone" "fail" "Over-broad guard - it will be disabled in practice"
+    fi
+else
+    echo "  --  harness guard or jq unavailable; behaviour probe skipped"
+fi
+
+# Routing: CLAUDE.md's hard escalation triggers say a high-risk task never goes
+# to the local model. Assert the script agrees, rather than trusting the prose.
+if subsystem_enabled routing && [[ -x scripts/route-model.sh ]]; then
+    if bash scripts/route-model.sh security high 1 2>/dev/null | grep -qv '^local:'; then
+        check "high-risk security task does not route local" "pass"
+    else
+        check "high-risk security task does not route local" "fail" "route-model.sh contradicts the hard escalation triggers in CLAUDE.md"
+    fi
+fi
+
+# Sandbox availability. Reported, not failed: bubblewrap needs unprivileged user
+# namespaces that a host kernel may withhold, and this validator also runs in CI
+# outside the devcontainer. The point is that degradation stops being silent -
+# .claude/settings.json deliberately leaves failIfUnavailable unset so a derived
+# repo is never bricked by a kernel detail, which makes saying so here the only
+# thing standing between "sandboxed" and "assumed sandboxed".
+if command -v bwrap &>/dev/null; then
+    check "bubblewrap present (Bash sandbox can initialise)" "pass"
+else
+    echo "  --  bubblewrap not on PATH; the Bash sandbox cannot initialise here and"
+    echo "      every sandbox.* key in $_settings is inert. Expected outside the"
+    echo "      devcontainer; inside it, rebuild the image."
+fi
+
 echo ""
 if [[ $SKIP -gt 0 ]]; then
     echo "Results: ${PASS} passed, ${FAIL} failed, ${SKIP} skipped (subsystems off in template.conf)"
