@@ -25,7 +25,7 @@ GOVERNING_RE='^(\.devcontainer/|\.claude/settings\.json$|\.claude/hooks/|\.claud
 
 if [[ $# -gt 0 ]]; then
     changed="$(git diff --name-only "$@")"
-    context="the range $*"
+    context="the changes in $*"
 else
     changed="$(git diff --cached --name-only)"
     context="the staged changes"
@@ -44,7 +44,7 @@ fi
 # Dockerfile does not alter the architecture. Say how to proceed rather than just
 # refusing, so the escape is deliberate instead of the check being deleted.
 cat >&2 <<MSG
-$EXPLAINER was not updated, but $context touches files that define the
+$EXPLAINER was not updated, but $context touch files that define the
 template's architecture, routing, or security gates:
 
 $(sed 's/^/  /' <<<"$drifted")
