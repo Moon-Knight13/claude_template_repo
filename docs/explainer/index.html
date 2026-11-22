@@ -282,7 +282,7 @@
     <div class="cards">
       <div class="card">
         <h3>Safe by default</h3>
-        <p>The environment is locked down — the network can only reach an approved list, and secrets never touch the repo. Guardrails are on before the first line is written.</p>
+        <p>The environment is locked down before the first line is written — egress is allowlisted, secrets never touch the repo, and the agent itself is fenced: it cannot read the credential store or quietly edit the files that define its own limits.</p>
       </div>
       <div class="card">
         <h3>Cheap work goes local</h3>
@@ -297,7 +297,7 @@
 
   <section>
     <p class="eyebrow">For engineers</p>
-    <h2>The five moving parts</h2>
+    <h2>The six moving parts</h2>
     <p class="section-note">Each is a self-contained piece of the template. Together they turn a blank repo into a governed, AI-assisted delivery pipeline.</p>
     <dl class="comp">
       <div>
@@ -319,6 +319,10 @@
       <div>
         <dt>CI security gates<span class="tag">.github/workflows/</span></dt>
         <dd><b>gitleaks</b> secret scanning, <b>semgrep</b> SAST (incl. MITRE ATLAS AI/ML rules), and <b>Trivy</b> container scanning — all enforced, not advisory.</dd>
+      </div>
+      <div>
+        <dt>Agent guardrails<span class="tag">.claude/settings.json · .claude/hooks/</span></dt>
+        <dd>The gates above protect the <i>code</i>. These protect the <b>agent writing it</b> — which reads issue text, packages and web pages an attacker can reach. <b>Deny rules</b> over credentials (they hold in every permission mode), a <b>Bash sandbox</b>, a guard so a session can't rewrite its own rules, and a rail that labels issue and PR text as <b>data, not instructions</b>.</dd>
       </div>
     </dl>
   </section>
@@ -357,7 +361,7 @@
         </div>
         <div class="host-ext">host machine · Ollama reachable only on :11434 →  local model, never leaves your box</div>
       </div>
-      <p class="d-note">Auth lives in mounted volumes, never in the repo. The firewall opens the network to a short allowlist and blocks the rest — set once at container start.</p>
+      <p class="d-note">Auth lives in mounted volumes, never in the repo — and deny rules stop the agent reading them from there. The firewall opens the network to a short allowlist and blocks the rest, set once at container start. Worth knowing what that buys: the allowlist includes all of GitHub, so it bounds <i>where</i> data can go rather than <i>whether</i> it leaves. The container protects the host; it is not a containment boundary for data.</p>
     </div>
 
     <div class="dgram">

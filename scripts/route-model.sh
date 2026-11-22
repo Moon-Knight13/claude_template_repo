@@ -3,7 +3,12 @@
 # Used by:
 #   - CLAUDE.md Task Routing Protocol (Claude Code reads the output and calls ask-local.sh accordingly)
 #   - CI scripts and automation that need risk-based routing logic
-# Not called automatically by Claude Code — Claude must invoke it explicitly per CLAUDE.md instructions.
+# Not called automatically per task — Claude must invoke it (or delegate-local.sh,
+# which wraps it) for each routing decision. What IS automatic is the posture:
+# .claude/hooks/session-route-context.sh injects the policy at session start, so
+# the rules are in context rather than depending on the model recalling CLAUDE.md
+# forty turns deep. scripts/validate-template.sh asserts this script agrees with
+# the hard escalation triggers rather than trusting that it does.
 set -euo pipefail
 
 TASK_TYPE="${1:-unknown}"

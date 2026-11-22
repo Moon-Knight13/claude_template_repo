@@ -1,8 +1,12 @@
 {
+  "_status": "SEED ONLY \u2014 NOT the active configuration. .claude/settings.json is now committed and template-owned: it carries the permissions.deny rules, sandbox config and hook wiring, and is what Claude Code actually reads. This example is kept because setup-day0.sh and validate-template.sh still reference it, and because it shows the MCP shape. Do not copy it over the real file \u2014 you would strip the security config. For per-repo customisation use .claude/settings.local.json, which is gitignored and never synced.",
   "mcpServers": {
     "local-ollama": {
       "command": "npx",
-      "args": ["-y", "ollama-mcp-server"],
+      "args": [
+        "-y",
+        "ollama-mcp-server"
+      ],
       "env": {
         "OLLAMA_HOST": "http://host.docker.internal:11434",
         "OLLAMA_MODEL": "qwen2.5-coder:7b"

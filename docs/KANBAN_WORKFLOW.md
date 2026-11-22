@@ -17,7 +17,7 @@ command below is the manual fallback.
 | **Status** (columns) | Backlog → Todo → Ready → In Progress → In Review → Done | The at-a-glance overview and delivery stage |
 | **BMAD Stage** (field) | Discovery … Security & Release | Which planning stage a card came from (mostly on epics) |
 | **Route** (field) | Human · Claude · Local | Who should work the card — derived from `scripts/route-model.sh` |
-| `agent-ready` (label) | — | Card is triaged and may be claimed by an agent session |
+| `agent-ready` (label) | — | Card is triaged and may be claimed by an agent session (gates **metadata only** — see below) |
 | `wip` (label) + assignee | — | Card is claimed; a claim lock — **do not touch** |
 
 **Route** is the orchestration surface. It is populated from the same routing
@@ -98,3 +98,26 @@ events. `/next-issue` and PR steps move the cards at the right moments.
 - `docs/AI_ROUTING_POLICY.md` + `scripts/route-model.sh` — the routing policy the
   Route field mirrors.
 - Commands: `/bmad-to-board`, `/next-issue`, `/run-epic`.
+
+
+## What `agent-ready` does and does not gate
+
+`board.sh next` and `board.sh claim` check Status, the `agent-ready` label and
+the assignee. All three are **metadata**. Neither one reads the issue body — yet
+the body is what `/next-issue` reads and implements.
+
+So the label records that a maintainer trusted the card *at labelling time*,
+while the agent acts on its content *at execution time*. On a public repo those
+can differ: anyone may open an issue, and an issue body can be edited after a
+maintainer has labelled it. Comments are untrusted throughout.
+
+`.claude/hooks/frame-untrusted-input.sh` closes the gap on the agent's side by
+labelling `gh issue`/`gh pr` output as data, so instructions embedded in a body
+are not read as instructions to the agent. It frames rather than blocklists,
+deliberately — a repo whose own issues discuss prompt injection would trip a
+keyword detector constantly, and an alarm that always fires is one nobody reads.
+High-signal imperative patterns still escalate the warning.
+
+Triage accordingly: applying `agent-ready` is a judgement about the body as it
+stands, and re-reading a card before an agent starts is worthwhile when it has
+been open a while. Tracked as finding A5 in [THREAT_MODEL.md](THREAT_MODEL.md).

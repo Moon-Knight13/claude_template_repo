@@ -13,6 +13,7 @@ A language-agnostic, production-ready template for Claude-first development. Pro
 - **BMAD workflow** — structured product → engineering planning via the `/bmad` skill
 - **Kanban orchestration** — a per-repo GitHub Project board where a human orchestrator hands work to Claude sessions or local models; agents claim issues collision-free via `/next-issue` and `/run-epic` (see [docs/KANBAN_WORKFLOW.md](docs/KANBAN_WORKFLOW.md))
 - **Devcontainer** — deny-by-default network firewall, pre-installed tooling, Claude CLI with mounted auth volume
+- **Agent guardrails** — `permissions.deny` over credential material, a Bash sandbox, and hooks that guard the harness's own config, label external issue/PR text as untrusted data, and scan files for secrets as they are written (see [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md))
 - **Branch protection bootstrap** — one-command GitHub branch protection with required status checks
 - **Day-0 validation** — `/day0-check` walks you through every setup step with pass/fail output and remediation hints
 
@@ -31,7 +32,9 @@ so you can also open the HTML locally.
 - **Routing** derives from `scripts/route-model.sh`; the same Human/Claude/Local decision
   shows up as the **Route** field on each board card.
 - **Gates are required, not advisory** — a red check blocks the merge (see
-  [`.github/workflows/`](.github/workflows/)).
+  [`.github/workflows/`](.github/workflows/)). This assumes a reviewer other than the
+  author: with a single maintainer, required review is self-review and admins can bypass
+  protection.
 - **Caveman** trims Claude's prose to cut output tokens and surfaces a live per-session
   token/cost tally in the statusline (see [docs/TEMPLATE_GUIDE.md](docs/TEMPLATE_GUIDE.md)).
 
@@ -42,7 +45,9 @@ so you can also open the HTML locally.
 - Claude Code CLI (authenticated before first session)
 - Optional: Ollama on host port 11434 for local model offload
 
-See [docs/TEMPLATE_GUIDE.md](docs/TEMPLATE_GUIDE.md) for the full setup guide including Caveman token compression and PII-Shield.
+See [docs/TEMPLATE_GUIDE.md](docs/TEMPLATE_GUIDE.md) for the full setup guide including Caveman token compression and PII-Shield (which needs a manual per-machine install, so it is opt-in rather than something this template ships).
+
+> **Read [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) before relying on the security posture**, especially its non-goals. In particular: the devcontainer is a host-protection boundary, not a data-containment one. Its firewall allowlist admits the entire GitHub CIDR range, so `git push` is an accepted exfiltration path rather than a closed one.
 
 ## Quick Start
 
@@ -61,10 +66,15 @@ See [docs/TEMPLATE_GUIDE.md](docs/TEMPLATE_GUIDE.md) for the full setup guide in
    ```
    Verify anytime with `bash scripts/check-day0.sh` — or from Claude: `/day0-check`
 
-4. **Validate the template** — confirm all template integrity checks pass:
+4. **Validate the template** — check structure, syntax, and security-control behaviour:
    ```bash
    bash scripts/validate-template.sh
    ```
+   A green run means the files are well-formed, the credential deny rules are present,
+   every wired hook is executable, the harness guard both blocks governing files and
+   leaves ordinary ones alone, and routing refuses to send a high-risk security task to
+   the local model. It does **not** mean the open findings in
+   [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) are closed.
 
 ## Repository Structure
 

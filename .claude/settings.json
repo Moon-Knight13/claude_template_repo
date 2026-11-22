@@ -1,0 +1,123 @@
+{
+  "_purpose": "Project-scope Claude Code settings. Committed and template-owned: this file syncs to every derived repo, so it may only contain rules that are correct in EVERY repo the template produces, including the template itself.",
+
+  "permissions": {
+    "_deny_note": "Deny rules are the most durable control Claude Code offers: per the permission-modes docs they 'block in every mode, including bypassPermissions', and no settings scope can remove a deny another scope added. That absoluteness is also the constraint — a deny here cannot be relaxed downstream, so this list holds ONLY credential and key material that no repo ever has cause to read or hand-edit. Protection of the harness's own governing files (.claude/, .devcontainer/, route-model.sh) is deliberately NOT here: /firewall-allow legitimately edits .devcontainer/init-firewall.sh, and the template repo edits all of them as its product. That protection lives in the PreToolUse hook instead, where it can be conditional. See docs/THREAT_MODEL.md.",
+
+    "deny": [
+      "Read(~/.claude/.credentials.json)",
+      "Read(~/.claude.json)",
+      "Read(~/.config/gh/hosts.yml)",
+      "Read(~/.git-credentials)",
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(~/.kube/**)",
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(**/*.pem)",
+      "Read(**/*.key)",
+      "Read(**/*.p12)",
+      "Read(**/*.pfx)",
+      "Read(**/id_rsa)",
+      "Read(**/id_ed25519)",
+      "Edit(~/.claude/**)",
+      "Edit(~/.config/gh/**)",
+      "Edit(~/.ssh/**)",
+      "Edit(.env)",
+      "Edit(.env.*)"
+    ],
+
+    "_no_bash_denies_note": "No Bash deny rules here on purpose. The permissions docs warn that patterns constraining command arguments are fragile — Bash(curl http://github.com/ *) misses -X before the URL, https, -L redirects, variable indirection and extra spaces. A deny list that looks protective but is trivially bypassed is exactly the false assurance this template is trying to stop shipping. Network egress is enforced at the firewall (.devcontainer/init-firewall.sh), which cannot be argued around."
+  },
+
+  "hooks": {
+    "_note": "The detector-sandwich shape: screen what comes in, screen what goes out. These carry the rules that permissions.deny cannot, because a deny rule is absolute and these need to be conditional. Scripts live in .claude/hooks/ and are themselves covered by the harness guard.",
+
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/guard-harness-files.sh",
+            "args": [],
+            "statusMessage": "Checking harness guard"
+          }
+        ]
+      }
+    ],
+
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/scan-edited-file.sh",
+            "args": [],
+            "statusMessage": "Scanning for secrets"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/frame-untrusted-input.sh",
+            "args": [],
+            "statusMessage": "Framing external content"
+          }
+        ]
+      }
+    ],
+
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/session-route-context.sh",
+            "args": []
+          }
+        ]
+      }
+    ]
+  },
+
+  "sandbox": {
+    "_note": "Requires bubblewrap, added to .devcontainer/Dockerfile alongside this block. Before that, every key here was inert. Enabling the sandbox is also what activates Claude Code's protected paths, which deny a running command writes to .claude/settings*, .claude/hooks, .mcp.json and .git/config so it cannot grant itself permissions mid-run.",
+
+    "_failIfUnavailable_note": "Deliberately NOT set. It would stop Claude Code starting whenever the sandbox cannot initialise — and bubblewrap needs unprivileged user namespaces, which are often unavailable inside Docker. In a file that syncs to every derived repo, that setting would brick Claude Code across the fleet on a host-kernel detail. The cost of leaving it unset is silent degradation to unsandboxed execution, which is precisely the failure mode this template is trying to stop shipping, so scripts/validate-template.sh asserts actual sandbox availability instead of assuming it. Set it to true in managed settings if you control the fleet's kernels.",
+
+    "enabled": true,
+    "allowUnsandboxedCommands": false,
+
+    "credentials": {
+      "_note": "The sandbox's default read policy is the entire filesystem, and there is no built-in credential deny list — only what is named here is restricted. These are the paths devcontainer.json mounts into the container as named volumes, so they sit directly beside the agent.",
+      "files": [
+        { "path": "~/.claude/.credentials.json", "mode": "deny" },
+        { "path": "~/.config/gh", "mode": "deny" },
+        { "path": "~/.ssh", "mode": "deny" },
+        { "path": "~/.aws", "mode": "deny" }
+      ]
+    },
+
+    "_network_note": "No network.allowedDomains list here on purpose. Egress in this devcontainer is already enforced by .devcontainer/init-firewall.sh at the iptables/ipset layer, which is strictly stronger than a per-process allowlist and applies to every binary, not just sandboxed Bash. Duplicating the domain list here would create a second list to keep in sync and a silent drift source between the two. Note the firewall's own limit, documented in docs/THREAT_MODEL.md: it admits the whole GitHub CIDR range, so it bounds WHERE data can go, not WHETHER it leaves."
+  },
+
+  "mcpServers": {
+    "local-ollama": {
+      "command": "npx",
+      "args": ["-y", "ollama-mcp-server"],
+      "env": {
+        "OLLAMA_HOST": "http://host.docker.internal:11434",
+        "OLLAMA_MODEL": "qwen2.5-coder:7b"
+      }
+    }
+  },
+
+  "_pii_shield_note": "PII-Shield (gregmos/PII-Shield) anonymizes content before it reaches Claude. It requires a manual per-machine install (Settings > Extensions > drag in the .mcpb file), so it is NOT a control this template ships — treat it as opt-in. See docs/TEMPLATE_GUIDE.md#pii--privacy-controls.",
+
+  "_statusline_note": "The caveman statusline badge is auto-configured by scripts/install-caveman.sh at container start into user-level settings (~/.claude/settings.json), because the plugin script lives at a hash-versioned cache path. Do not hardcode a statusLine here."
+}

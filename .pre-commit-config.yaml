@@ -47,3 +47,17 @@ repos:
         language: script
         files: ^\.github/CODEOWNERS$
         pass_filenames: false
+
+      # CLAUDE.md requires docs/explainer/index.html to be updated in the same
+      # change when the architecture, routing, security gates, or component set
+      # move. That rule was prose, so it held only when someone remembered it —
+      # and the explainer is what non-technical readers are pointed at, published
+      # via Pages, so drift misinforms the audience least able to notice.
+      # Escape hatch for genuine non-architectural edits (a pinned version bump):
+      #   SKIP=explainer-drift git commit ...
+      - id: explainer-drift
+        name: Explainer updated alongside architecture changes
+        entry: scripts/check-explainer-drift.sh
+        language: script
+        files: ^(\.devcontainer/|\.claude/settings\.json$|\.claude/hooks/|\.claude/agents/|\.github/workflows/|scripts/(route-model|delegate-local|suggest-route)\.sh$|\.semgrep\.yml$|\.gitleaks\.toml$|template\.conf$)
+        pass_filenames: false

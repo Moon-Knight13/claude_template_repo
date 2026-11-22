@@ -234,6 +234,27 @@ Bootstrap safety defaults:
 - Semgrep policy checks in local and CI workflows with SARIF upload to GitHub Security tab.
 - Default-branch ruleset (required PR reviews + required status checks, no force-push/deletion) configured by the bootstrap script.
 
+Those controls protect the repository. A second layer protects the **agent**,
+which reads issue bodies, PR comments, package contents and fetched pages — all
+of it attacker-reachable without any access to your repo:
+
+- `permissions.deny` over credential and key material in `.claude/settings.json`.
+  This is the most durable control available: deny rules hold in every permission
+  mode, `bypassPermissions` included, and no scope can remove one. That is also
+  why the list is short — it syncs to every derived repo and cannot be relaxed
+  downstream, so it carries only rules true everywhere.
+- The Bash sandbox (`bubblewrap`) with credential deny entries. Enabling it is
+  also what activates Claude Code's protected paths.
+- Hooks in `.claude/hooks/`: a guard over the harness's own governing files, a
+  rail labelling external text as data, gitleaks at write time, and a
+  `SessionStart` hook that makes the routing posture session state instead of a
+  paragraph the model has to remember.
+
+Read [THREAT_MODEL.md](THREAT_MODEL.md) before relying on any of it — in
+particular the non-goals. The container is a host-protection boundary, not a
+data-containment one: the firewall allowlist admits the entire GitHub CIDR range,
+so `git push` is an accepted exfiltration path rather than a closed one.
+
 See [SECURITY.md](../SECURITY.md) for leak response guidance.
 
 ## PII & Privacy Controls
@@ -265,6 +286,12 @@ All PII rules skip `tests/` and `docs/` paths by default. To add a custom allowl
 | `atlas-t0040-pii-in-prompt` | PII field names interpolated into LLM f-string prompts | Python |
 
 ### Claude context protection (PII-Shield)
+
+> **Opt-in, not shipped.** PII-Shield requires a manual per-machine install, so
+> it is not a control this template provides and must not be counted as one in
+> your security posture. Every derived repo starts without it. Treat the steps
+> below as something you choose to do, and assume it is absent until you have
+> done it on each machine.
 
 [PII-Shield](https://github.com/gregmos/PII-Shield) anonymizes content *before it reaches Claude* — replacing names, emails, phone numbers, and other PII with reversible placeholders that are restored in Claude's response. This is complementary to git hooks (which protect the repo), not a substitute.
 
@@ -474,8 +501,24 @@ Propagates from template files:
   creation by the template-sync workflow (see
   [Template Updates](#template-updates-downstream-sync))
 
+`.claude/settings.json` is now **template-owned and committed**, because it carries
+the security posture — the credential deny rules, the sandbox config and the hook
+wiring — and a control that arrives only if someone remembers to copy an example
+is a control most repos will not have. It therefore syncs like any other
+template file, and because sync merges with `-X theirs`, the template's version
+wins over local edits.
+
+**Put per-repo customisation in `.claude/settings.local.json` instead.** That
+file is gitignored, never synced, and is the surface Claude Code already intends
+for machine-local settings. Adding your own MCP server directly to
+`.claude/settings.json` means losing it on the next sync. Note that a `deny` rule
+cannot be relaxed there — no scope can remove a deny another scope added — which
+is exactly why the shipped deny list contains only rules that are correct in
+every repo.
+
 Automatic per new repository (on container start, via `scripts/setup-day0.sh`):
-- copy `.env` + `.claude/settings.json` from the shipped examples
+- copy `.env` from the shipped example (the `.claude/settings.json` copy is now a
+  no-op, guarded on the file's absence, since the template ships a real one)
 - populate CODEOWNERS from the git remote owner
 - apply the branch-protection ruleset and create the Kanban board — best-effort,
   once `gh` is authenticated (re-run `setup-day0.sh` after auth to trigger them)
@@ -519,6 +562,18 @@ What syncs and what doesn't:
   touched.
 
 ### Conflict behavior — read before merging a sync PR
+
+> **This is a trust relationship, not just a merge strategy.** A weekly cron
+> opens a PR that silently proposes the template's version of any file you both
+> touched — and `template-sync.yml` can be configured with a `TEMPLATE_SYNC_TOKEN`
+> carrying `workflows: write`. So whoever controls the upstream template can
+> propose changes to your security rules and your CI, arriving as a routine PR
+> titled like every other sync. Sync PRs are the ones most likely to be
+> rubber-stamped and the ones that most deserve reading. This is not
+> hypothetical: an earlier sync deleted a derived project's own security rules
+> by exactly this route, which is why `CLAUDE.md` now carries a warning against
+> putting project-specific content in it. Tracked as finding A3 in
+> [THREAT_MODEL.md](THREAT_MODEL.md).
 
 The sync merges with `-X theirs`: when you and the template edited the **same
 lines** of a synced file, the sync PR arrives with the **template's version —
