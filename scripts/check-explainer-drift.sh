@@ -43,7 +43,7 @@ fi
 # The explainer may legitimately not need a change — a pinned-version bump in the
 # Dockerfile does not alter the architecture. Say how to proceed rather than just
 # refusing, so the escape is deliberate instead of the check being deleted.
-# shellcheck disable=SC2001 — sed anchors to line start; bash PE can't
+# shellcheck disable=SC2001
 cat >&2 <<MSG
 $EXPLAINER was not updated, but $context touch files that define the
 template's architecture, routing, or security gates:
